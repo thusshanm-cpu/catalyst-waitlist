@@ -1,9 +1,10 @@
 // ————— Waitlist —————
 // The app is client-side (GitHub Pages, no backend), so signups persist to
-// localStorage to keep the prototype working end-to-end. Paste a form backend
-// URL below and submissions will also POST there as JSON:
-//   { email, name, role, fields, at }
-// Works with Formspree, Getform, a serverless function, etc.
+// localStorage to keep the prototype working end-to-end. Set WAITLIST_ENDPOINT
+// to a form backend and submissions will also POST there as form data:
+//   email, name, role, fields (comma-joined), at
+// Works with Formspree, Getform, Sheet Monkey, Web3Forms, a serverless
+// function, etc.
 export const WAITLIST_ENDPOINT = '' // e.g. 'https://formspree.io/f/xxxxxxx'
 
 const LS_KEY = 'catalyst.waitlist.v1'
@@ -47,10 +48,18 @@ export async function joinWaitlist(entry) {
   let mode = 'local'
   if (WAITLIST_ENDPOINT) {
     try {
+      // Form backends accept cross-origin browser posts and expect a
+      // url-encoded body, not JSON. Flatten the fields array to one string.
+      const body = new URLSearchParams()
+      body.set('email', record.email)
+      if (record.name) body.set('name', record.name)
+      body.set('role', record.role)
+      body.set('fields', (record.fields || []).join(', '))
+      body.set('at', record.at)
       const res = await fetch(WAITLIST_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(record),
+        headers: { Accept: 'application/json' },
+        body,
       })
       mode = res.ok ? 'remote' : 'local'
     } catch {

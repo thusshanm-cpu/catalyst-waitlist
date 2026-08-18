@@ -121,7 +121,7 @@ collection. To actually collect emails, set a form backend in [`src/waitlist.js`
 export const WAITLIST_ENDPOINT = 'https://formspree.io/f/your-form-id'
 ```
 
-Submissions POST as JSON `{ email, name, role, fields, at }` — Formspree, Getform, or any
+Submissions POST as form data (`email`, `name`, `role`, `fields`, `at`) — Formspree, Getform, or any
 serverless function works.
 
 ## Run it locally
