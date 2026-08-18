@@ -9,8 +9,9 @@ A fully client-side React + Vite prototype. No backend, no API keys, no accounts
 
 ## Live demo
 
-**https://thusshanm-cpu.github.io/catalyst/** — deployed automatically from `main` on every push
-via GitHub Actions. Open it on any device, any network.
+**https://thusshanm-cpu.github.io/catalyst-waitlist/** — the waitlist build, deployed automatically
+from `main` on every push via GitHub Actions. This is a separate repo from the hackathon
+submission (`thusshanm-cpu/catalyst`), so the submitted site stays untouched.
 
 ## For judges — 60-second walkthrough
 
@@ -110,6 +111,19 @@ cards, whiteboard strokes draw live on both canvases, and end-of-session decisio
 
 No peer within 12 seconds? It falls back to a clearly labeled `DEMO MATCH`.
 
+## Waitlist
+
+The landing page leads with a **Join the waitlist** form for students and startups. Signups persist
+to `localStorage` so the flow works end-to-end in the browser — but that is per device and not real
+collection. To actually collect emails, set a form backend in [`src/waitlist.js`](src/waitlist.js):
+
+```js
+export const WAITLIST_ENDPOINT = 'https://formspree.io/f/your-form-id'
+```
+
+Submissions POST as JSON `{ email, name, role, fields, at }` — Formspree, Getform, or any
+serverless function works.
+
 ## Run it locally
 
 ```bash
@@ -123,3 +137,4 @@ React 18 + Vite 6, entirely client-side. **Real:** the UI, webcam capture, white
 cross-tab matching and relay, form validation, timers, and consent gating. **Simulated for the
 prototype:** the interview counterpart (scripted peers), the AI summary, verification (files are
 not inspected; the email code is a fixed demo code), and persistence (localStorage, per device).
+Waitlist signups are localStorage-only until `WAITLIST_ENDPOINT` is set (see **Waitlist** above).

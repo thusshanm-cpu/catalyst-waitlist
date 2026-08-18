@@ -4,6 +4,7 @@ import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { DEMO_PROFILES } from '../data.js'
 import Reveal from '../components/Reveal.jsx'
+import Waitlist from '../components/Waitlist.jsx'
 import { Check, Zap, Bug, Target, Megaphone, Coins, Fingerprint, Shield, Building, Warning, ArrowUpRight } from '../components/icons.jsx'
 
 export default function Landing() {
@@ -41,7 +42,7 @@ export default function Landing() {
             <a href="#how">How it works</a>
             <a href="#sims">Simulations</a>
             <a href="#safety">Trust &amp; safety</a>
-            <a href="#ai">AI &amp; consent</a>
+            <a href="#waitlist">Join the waitlist</a>
           </div>
           <div className="nav-actions">
             <button className="btn btn-ghost btn-sm" onClick={() => go('employer')}>I&apos;m a startup</button>
@@ -69,8 +70,8 @@ export default function Landing() {
             </Reveal>
             <Reveal delay={270}>
               <div className="hero-cta">
-                <button className="btn btn-primary btn-lg" onClick={() => go('candidate')}>Interview as a student</button>
-                <button className="btn btn-violet btn-lg" onClick={() => go('employer')}>Hire as a startup</button>
+                <a href="#waitlist" className="btn btn-primary btn-lg">Join the waitlist</a>
+                <button className="btn btn-violet btn-lg" onClick={() => go('candidate')}>Try the demo</button>
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 22, flexWrap: 'wrap' }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => instant('candidate')}><Zap size={13} /> Instant demo · student</button>
@@ -249,26 +250,15 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ————— CTA ————— */}
-      <section className="section" id="ai">
+      {/* ————— Waitlist ————— */}
+      <section className="section" id="waitlist">
         <div className="container">
           <div className="section-head center" style={{ marginBottom: 30 }}>
+            <span className="eyebrow center">Early access</span>
             <h2 className="display display-lg">Potential doesn&apos;t wait for an opening.</h2>
+            <p>Be first in the room. Join the waitlist and we&apos;ll email you the moment your cohort opens — one email, no spam.</p>
           </div>
-          <div className="cta-grid">
-            <Reveal as="div" className="cta-card cand">
-              <span className="role">For students</span>
-              <h4>Get judged on how you think.</h4>
-              <p>One verification. Real startups in your field. Practice under pressure with feedback that makes you a sharper interviewer.</p>
-              <button className="btn btn-primary" onClick={() => go('candidate')}>Interview as a student</button>
-            </Reveal>
-            <Reveal as="div" className="cta-card startup" delay={100}>
-              <span className="role">For startups</span>
-              <h4>Hire the room, not the resume.</h4>
-              <p>Meet adaptable, curious students who can actually handle ambiguity — ten minutes at a time, in your field, with zero noise.</p>
-              <button className="btn btn-violet" onClick={() => go('employer')}>Hire as a startup</button>
-            </Reveal>
-          </div>
+          <Reveal dir="zoom"><Waitlist /></Reveal>
         </div>
       </section>
 

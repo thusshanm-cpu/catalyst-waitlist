@@ -40,6 +40,7 @@ import {
   Code as PCode,
   Fingerprint as PFingerprint,
   Building as PBuilding,
+  GraduationCap as PGraduationCap,
 } from '@phosphor-icons/react'
 
 const W = (C) => (p) => <C size={p.size ?? 16} style={p.style} weight="regular" aria-hidden />
@@ -80,6 +81,7 @@ export const Warning = W(PWarning)
 export const Code = W(PCode)
 export const Fingerprint = W(PFingerprint)
 export const Building = W(PBuilding)
+export const GraduationCap = W(PGraduationCap)
 
 /* ————— Shared maps: role fields and simulation scenarios ————— */
 
