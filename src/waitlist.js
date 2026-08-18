@@ -5,7 +5,7 @@
 //   email, name, role, fields (comma-joined), at
 // Works with Formspree, Getform, Sheet Monkey, Web3Forms, a serverless
 // function, etc.
-export const WAITLIST_ENDPOINT = '' // e.g. 'https://formspree.io/f/xxxxxxx'
+export const WAITLIST_ENDPOINT = 'https://formspree.io/f/xaewlldd'
 
 const LS_KEY = 'catalyst.waitlist.v1'
 
