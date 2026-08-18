@@ -1,11 +1,10 @@
 // ————————————————————————————————————————————————————————————
 // Match — matchmaking + live session relay.
 //
-// Three transports, one API:
+// Two transports, one API:
 //   • Supabase Realtime — devices on different networks announce
 //     presence and blind-match automatically (no codes, just press start).
 //   • BroadcastChannel — tabs on the same origin do the same with no backend.
-//   • PeerJS (WebRTC data channel) — a direct 1:1 link via a short room code.
 //
 // Names and companies are never exchanged — that's the point.
 // ————————————————————————————————————————————————————————————
@@ -13,7 +12,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 // ——— Supabase Realtime (cross-device automatic matching) ———
-// Paste your project URL + public anon key (Dashboard → Project Settings → API).
+// Project URL + publishable key (Dashboard → Project Settings → API).
 // These are safe to ship in the client. Leave both empty to use BroadcastChannel.
 const SUPABASE_URL = 'https://aazquqwcfpbnoouinmhn.supabase.co'
 const SUPABASE_ANON_KEY = 'sb_publishable_8-zmag01KDM6IeJW7DWqJw_VOU8p6oy'
@@ -23,8 +22,6 @@ const CH = 'catalyst.match.v1'
 const HB_MS = 2000
 const SEARCH_MS = 1200
 const STALE_MS = 6500
-const REMOTE_PREFIX = 'catalyst-'
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no 0/O/1/I/L
 
 let channel = null
 let me = null            // { id, role, fields, resume }
@@ -38,16 +35,7 @@ let matched = null       // { matchId, peer: anon, startAt }
 let pendingOffer = null  // { matchId } we offered and are awaiting acceptance
 let listeners = new Map() // event -> Set<fn>
 
-// remote (two-device) state
-let remoteMode = null    // 'host' | 'guest' | null
-let remotePeer = null    // PeerJS Peer
-let remoteConn = null    // PeerJS DataConnection
-let remoteCode = null
-let remoteField = null
-
 const uid = () => Math.random().toString(36).slice(2, 10)
-const roomCode = () =>
-  Array.from({ length: 6 }, () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]).join('')
 
 /* ————— events ————— */
 
@@ -101,13 +89,8 @@ function ensureChannel() {
   return true
 }
 
-/* Route to the data channel when a remote peer is live, else broadcast. */
 function post(msg) {
-  if (remoteConn && remoteConn.open) {
-    remoteConn.send(msg)
-  } else {
-    channel?.send(msg)
-  }
+  channel?.send(msg)
 }
 
 /* ————— identity & presence ————— */
@@ -143,7 +126,7 @@ function heartbeat() {
   emit('presence', presence())
 }
 
-/* ————— matching protocol (broadcast transport) ————— */
+/* ————— matching protocol ————— */
 
 function startSearch(field) {
   if (!ensureChannel() || !me) return false
@@ -174,99 +157,8 @@ function setMatched(matchId, peerAnon, offerField) {
   emit('match', { ...matched })
 }
 
-/* ————— remote (two-device) protocol ————— */
-
-async function loadPeerjs() {
-  const mod = await import('peerjs')
-  return mod.Peer
-}
-
-async function hostRemote(field) {
-  if (!me) throw new Error('not-ready')
-  if (remoteMode === 'host' && remotePeer) return remoteCode
-  if (remoteMode) return null
-
-  const Peer = await loadPeerjs()
-  remoteMode = 'host'
-  remoteField = field
-  remoteCode = roomCode()
-  remotePeer = new Peer(REMOTE_PREFIX + remoteCode)
-
-  return new Promise((resolve, reject) => {
-    remotePeer.on('open', () => resolve(remoteCode))
-    remotePeer.on('error', (err) => { cleanupRemote(); reject(err) })
-    remotePeer.on('connection', (conn) => {
-      remoteConn = conn
-      const matchId = uid()
-      conn.on('open', () => {
-        post({ t: 'remote-hello', matchId, anon: anonFor(me.role, remoteField), field: remoteField, ack: false })
-      })
-      conn.on('data', (d) => handleMessage(d))
-      conn.on('close', () => emit('peer-offline'))
-      conn.on('error', () => emit('peer-offline'))
-    })
-  })
-}
-
-async function joinRemote(code, field) {
-  if (!me) throw new Error('not-ready')
-  if (remoteMode) return remoteState()
-
-  const clean = String(code || '').trim().toUpperCase()
-  if (!clean) throw new Error('bad-code')
-
-  const Peer = await loadPeerjs()
-  remoteMode = 'guest'
-  remoteField = field
-  remoteCode = clean
-  remotePeer = new Peer()
-
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { cleanupRemote(); reject(new Error('timeout')) }, 20000)
-    remotePeer.on('open', () => {
-      const conn = remotePeer.connect(REMOTE_PREFIX + clean, { reliable: true })
-      remoteConn = conn
-      conn.on('open', () => { clearTimeout(timer); resolve(remoteState()) })
-      conn.on('data', (d) => handleMessage(d))
-      conn.on('close', () => { clearTimeout(timer); emit('peer-offline') })
-      conn.on('error', () => { clearTimeout(timer); cleanupRemote(); reject(new Error('connect')) })
-    })
-    remotePeer.on('error', (err) => { clearTimeout(timer); cleanupRemote(); reject(err) })
-  })
-}
-
-function leaveRemote() {
-  if (!remoteMode) return
-  if (remoteConn?.open && matched) remoteConn.send({ t: 'end', to: matched.matchId })
-  cleanupRemote()
-  cancelSearch()
-  matched = null
-}
-
-function cleanupRemote() {
-  try { remoteConn?.close() } catch { /* noop */ }
-  try { remotePeer?.destroy() } catch { /* noop */ }
-  remoteConn = null
-  remotePeer = null
-  remoteMode = null
-  remoteCode = null
-  remoteField = null
-}
-
-function remoteState() {
-  return {
-    mode: remoteMode,
-    code: remoteCode,
-    connected: !!(remoteConn && remoteConn.open),
-    matched: !!matched,
-  }
-}
-
 function handleMessage(msg) {
   if (!msg || !msg.t || !me) return
-
-  // Remote mode only cares about the handshake and match-directed relay.
-  if (remoteMode && msg.t !== 'remote-hello' && msg.to !== matched?.matchId) return
 
   switch (msg.t) {
     case 'hb': {
@@ -302,20 +194,6 @@ function handleMessage(msg) {
     case 'match-accept': {
       if (msg.to !== me.id || !pendingOffer || pendingOffer.matchId !== msg.matchId) return
       setMatched(msg.matchId, msg.anon, msg.field)
-      break
-    }
-    case 'remote-hello': {
-      if (!remoteMode) break
-      if (msg.ack) {
-        // guest → host: we have the guest's blind profile now
-        if (!matched) setMatched(msg.matchId, msg.anon, msg.field)
-      } else {
-        // host → guest: accept and send our blind profile back
-        if (!matched) {
-          setMatched(msg.matchId, msg.anon, msg.field)
-          post({ t: 'remote-hello', matchId: msg.matchId, anon: anonFor(me.role, msg.field), field: msg.field, ack: true })
-        }
-      }
       break
     }
     // ——— post-match relay (routed by matchId) ———
@@ -382,30 +260,13 @@ export const Match = {
 
   cancelSearch,
 
-  /** host a two-device session; resolves to the room code to share */
-  hostRemote(field) {
-    return hostRemote(field)
-  },
-
-  /** join a two-device session by room code */
-  joinRemote(code, field) {
-    return joinRemote(code, field)
-  },
-
-  /** end the remote link (stops before/after a session) */
-  leaveRemote,
-
-  /** { mode, code, connected, matched } for the remote UI */
-  remoteState,
-
   /** active broadcast transport: 'supabase' | 'broadcast' | null */
   channelInfo() {
     return channel?.label || null
   },
 
-  /** true while a peer is still heartbeating (or the data channel is open) */
+  /** true while a peer is still heartbeating */
   isPeerOnline() {
-    if (remoteMode) return !!(remoteConn && remoteConn.open)
     if (!matched?.peer) return false
     const p = peers.get(matched.peer.anonId)
     return !!p && Date.now() - p.ts < STALE_MS
@@ -463,13 +324,12 @@ export const Match = {
 
   /** full reset (logout / fresh start) */
   dispose() {
-    if (me && !remoteMode) post({ t: 'bye', id: me.id })
+    if (me) post({ t: 'bye', id: me.id })
     cancelSearch()
     pendingOffer = null
     if (hbTimer) clearInterval(hbTimer)
     if (pruneTimer) clearInterval(pruneTimer)
     hbTimer = pruneTimer = null
-    cleanupRemote()
     try { channel?.close() } catch { /* noop */ }
     channel = null
     me = null

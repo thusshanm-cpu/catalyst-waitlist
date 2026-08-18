@@ -31,8 +31,6 @@ export default function Dashboard() {
   const [mode, setMode] = useState('demo') // 'demo' | 'real'
   const [searching, setSearching] = useState(null) // field being searched for a live peer
   const [presence, setPresence] = useState([])
-  const [remote, setRemote] = useState({ status: null, code: null }) // hosting | waiting | joining | connected
-  const [remoteCodeInput, setRemoteCodeInput] = useState('')
   const [channelLabel, setChannelLabel] = useState(null)
 
   useEffect(() => {
@@ -82,23 +80,11 @@ export default function Dashboard() {
     })
   }
 
-  /* two-device remote: the handshake completes → launch the same live session */
-  useEffect(() => {
-    const off = Match.on('match', (m) => {
-      if (!Match.remoteState().mode) return
-      setRemote({ status: null, code: null })
-      launch(m.field || mainField, 'Intern', { real: true, anon: m.peer, remote: true })
-      toast('Remote peer matched — live session started', '🔗')
-    })
-    return off
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainField, isCandidate, demo, user?.role, user?.fields])
-
   const start = (field, roleType) => {
     if (mode === 'demo') { launch(field, roleType); return }
     if (searching) return // already searching — don't stack listeners
 
-    // Real mode: find a live peer in another tab, fall back to a simulated match
+    // Real mode: find a live peer on another device, fall back to a simulated match
     setSearching(field)
     const off = Match.on('match', (m) => {
       off()
@@ -122,38 +108,6 @@ export default function Dashboard() {
       toast('No live peer found — starting a simulated match instead', '🎭')
       launch(field, roleType)
     }, 12000)
-  }
-
-  const hostRemote = async () => {
-    setRemote({ status: 'hosting', code: null })
-    try {
-      const code = await Match.hostRemote(mainField)
-      setRemote({ status: 'waiting', code })
-      toast(`Room ${code} — share it to go live`, '🔗')
-    } catch (e) {
-      setRemote({ status: null, code: null })
-      toast('Could not host a remote session', '⚠️')
-    }
-  }
-
-  const joinRemote = async () => {
-    const code = (remoteCodeInput || '').trim().toUpperCase()
-    if (!code) return
-    setRemote({ status: 'joining', code: null })
-    try {
-      await Match.joinRemote(code, mainField)
-      setRemote({ status: 'connected', code })
-      toast('Peer connected — starting your session', '🔗')
-    } catch (e) {
-      setRemote({ status: null, code: null })
-      toast('Could not join — check the room code', '⚠️')
-    }
-  }
-
-  const copyRemoteCode = () => {
-    if (!remote.code) return
-    navigator.clipboard?.writeText(remote.code)
-    toast('Room code copied', '🔗')
   }
 
   const histStatus = { saved: { t: 'Saved', c: 'saved' }, followup: { t: 'Follow-up asked', c: 'followup' }, continued: { t: 'Kept talking', c: 'saved' }, time: { t: 'Time up', c: 'saved' }, ended: { t: 'Ended', c: 'skipped' }, skipped: { t: 'Skipped', c: 'skipped' } }
@@ -231,45 +185,6 @@ export default function Dashboard() {
           <button className="btn btn-primary btn-lg" disabled={!!searching} onClick={() => start(mainField, 'Intern')}>
             {searching ? 'Searching for a live peer…' : (isCandidate ? 'Start a 10-minute session' : 'Meet the next candidate')}{!searching && ' →'}
           </button>
-        </div>
-
-        {/* ————— Two-device remote session ————— */}
-        <div className="match-card" style={{ marginBottom: 26, borderColor: 'rgba(140,147,251,.45)' }}>
-          <div className="mc-body">
-            <div className="mc-kicker" style={{ color: 'var(--violet)' }}>Two devices · peer-to-peer</div>
-            <h2>Go live with someone on another device</h2>
-            <p>Host to get a room code, or join with a friend&apos;s code. Whiteboard, simulations, curveballs, and end-of-session decisions sync live over a direct link.</p>
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', position: 'relative' }}>
-            {remote.code ? (
-              <button className="btn btn-ghost btn-sm" onClick={copyRemoteCode} title="Copy room code">
-                Room {remote.code} · copy
-              </button>
-            ) : (
-              <button className="btn btn-violet btn-sm" onClick={hostRemote} disabled={!!remote.status}>
-                {remote.status === 'hosting' ? 'Opening room…' : 'Host a session'}
-              </button>
-            )}
-            <input
-              className="input"
-              style={{ width: 130, padding: '9px 12px', fontSize: 13 }}
-              placeholder="Room code"
-              value={remoteCodeInput}
-              onChange={(e) => setRemoteCodeInput(e.target.value.toUpperCase())}
-              maxLength={6}
-            />
-            <button className="btn btn-primary btn-sm" onClick={joinRemote} disabled={!remoteCodeInput.trim() || !!remote.status}>
-              {remote.status === 'joining' ? 'Joining…' : 'Join'}
-            </button>
-            {remote.status && (
-              <span className="text-3" style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>
-                {remote.status === 'hosting' && 'registering room…'}
-                {remote.status === 'waiting' && 'waiting for a peer…'}
-                {remote.status === 'joining' && 'connecting…'}
-                {remote.status === 'connected' && 'peer connected'}
-              </span>
-            )}
-          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 22, alignItems: 'start' }}>
