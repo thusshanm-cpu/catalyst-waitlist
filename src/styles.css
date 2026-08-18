@@ -1679,7 +1679,7 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 
 .wl-seg {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin-bottom: 26px;
 }
@@ -1737,5 +1737,6 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 
 @media (max-width: 640px) {
   .wl-form .form-row { grid-template-columns: 1fr; }
+  .wl-seg { grid-template-columns: 1fr; }
 }
 

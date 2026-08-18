@@ -6,7 +6,7 @@ import { DEMO_PROFILES } from '../data.js'
 import Reveal from '../components/Reveal.jsx'
 import Waitlist from '../components/Waitlist.jsx'
 import { isPreview } from '../preview.js'
-import { Check, Zap, Bug, Target, Megaphone, Coins, Fingerprint, Shield, Building, Warning, ArrowUpRight } from '../components/icons.jsx'
+import { Check, Zap, Bug, Target, Megaphone, Coins, Fingerprint, Shield, Building, Warning, ArrowUpRight, Handshake } from '../components/icons.jsx'
 
 export default function Landing() {
   const { api } = useStore()
@@ -19,6 +19,13 @@ export default function Landing() {
   const mockY = useTransform(scrollY, [0, 900], [0, 81])
 
   const go = (role) => api.navigate('onboarding') /* role picked on the onboarding step 1 */
+
+  /* waitlist segment shortcut: jump to the form with the right role preselected */
+  const [waitlistRole, setWaitlistRole] = useState('candidate')
+  const joinAs = (role) => {
+    setWaitlistRole(role)
+    document.getElementById('waitlist')?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   /* judge-mode shortcut: skip onboarding entirely, land verified on the dashboard */
   const instant = (role) => {
@@ -43,6 +50,7 @@ export default function Landing() {
           <div className="nav-links">
             <a href="#how">How it works</a>
             <a href="#sims">Simulations</a>
+            <a href="#cofounders">For founders</a>
             <a href="#safety">Trust &amp; safety</a>
             <a href="#waitlist">Join the waitlist</a>
           </div>
@@ -202,6 +210,42 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ————— Cofounder matching ————— */}
+      <section className="section" id="cofounders">
+        <div className="container">
+          <div className="section-head">
+            <span className="eyebrow">For founders</span>
+            <h2 className="display display-lg">Don&apos;t build alone.</h2>
+            <p>Find a cofounder the way you&apos;d hire one — by working together, not by reading profiles. Blind, ten-minute sessions with verified builders who fill the gap in your team.</p>
+          </div>
+          <Reveal className="band">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 44, alignItems: 'center' }}>
+              <div>
+                <h3>Startups start with the right room.</h3>
+                <p>Skip the coffee-chat dating. Catalyst matches founders for a real working session — then you decide if there&apos;s a company in it.</p>
+                <div style={{ marginTop: 22 }}>
+                  <button className="btn btn-primary" onClick={() => joinAs('founder')}>Find a cofounder</button>
+                </div>
+              </div>
+              <div className="safety-grid">
+                {[
+                  [<Shield size={18} key="i" />, 'Verified founders', 'Every founder is ID-checked before they enter a room.'],
+                  [<Handshake size={18} key="i" />, 'Work, not coffee', 'A ten-minute working session shows if you can actually build together.'],
+                  [<Target size={18} key="i" />, 'Matched on the gap', 'Technical, design, growth — matched to what your team is missing.'],
+                  [<Building size={18} key="i" />, 'Ready to start', 'Founders ready to commit, not people window-shopping.'],
+                ].map(([icon, t, b], i) => (
+                  <Reveal as="div" className="safety-tile" key={t} dir="zoom" delay={i * 70}>
+                    <span className="st-icon">{icon}</span>
+                    <strong>{t}</strong>
+                    <span>{b}</span>
+                  </Reveal>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ————— Trust & safety ————— */}
       <section className="section" id="safety">
         <div className="container">
@@ -269,7 +313,7 @@ export default function Landing() {
             <h2 className="display display-lg">Potential doesn&apos;t wait for an opening.</h2>
             <p>Be first in the room. Join the waitlist and we&apos;ll email you the moment your cohort opens — one email, no spam.</p>
           </div>
-          <Reveal dir="zoom"><Waitlist /></Reveal>
+          <Reveal dir="zoom"><Waitlist key={waitlistRole} initialRole={waitlistRole} /></Reveal>
         </div>
       </section>
 

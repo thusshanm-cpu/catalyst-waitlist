@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useToast } from '../toast.jsx'
 import { FIELDS } from '../data.js'
 import { joinWaitlist, validEmail } from '../waitlist.js'
-import { Check, Send, GraduationCap, Building } from './icons.jsx'
+import { Check, Send, GraduationCap, Building, Handshake } from './icons.jsx'
 
 const ROLE_COPY = {
   candidate: {
@@ -15,11 +15,22 @@ const ROLE_COPY = {
     fieldsLabel: 'What are you hiring for?',
     success: "We'll email you when hiring rooms open in your stack.",
   },
+  founder: {
+    seg: "I'm a founder",
+    fieldsLabel: 'What kind of cofounder are you looking for?',
+    success: "We'll email you when cofounder matching opens.",
+  },
 }
 
-export default function Waitlist() {
+const ROLE_ICONS = {
+  candidate: GraduationCap,
+  employer: Building,
+  founder: Handshake,
+}
+
+export default function Waitlist({ initialRole = 'candidate' }) {
   const { toast } = useToast()
-  const [role, setRole] = useState('candidate')
+  const [role, setRole] = useState(initialRole)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [fields, setFields] = useState([])
@@ -70,18 +81,21 @@ export default function Waitlist() {
   return (
     <div className="wl-card">
       <div className="wl-seg" role="group" aria-label="Who are you?">
-        {['candidate', 'employer'].map((r) => (
-          <button
-            key={r}
-            type="button"
-            className={role === r ? 'on' : ''}
-            aria-pressed={role === r}
-            onClick={() => setRole(r)}
-          >
-            {r === 'candidate' ? <GraduationCap size={17} /> : <Building size={17} />}
-            {ROLE_COPY[r].seg}
-          </button>
-        ))}
+        {['candidate', 'employer', 'founder'].map((r) => {
+          const Icon = ROLE_ICONS[r]
+          return (
+            <button
+              key={r}
+              type="button"
+              className={role === r ? 'on' : ''}
+              aria-pressed={role === r}
+              onClick={() => setRole(r)}
+            >
+              <Icon size={17} />
+              {ROLE_COPY[r].seg}
+            </button>
+          )
+        })}
       </div>
 
       <form className="wl-form" onSubmit={submit} noValidate>
