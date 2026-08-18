@@ -33,9 +33,11 @@ export default function Dashboard() {
   const [presence, setPresence] = useState([])
   const [remote, setRemote] = useState({ status: null, code: null }) // hosting | waiting | joining | connected
   const [remoteCodeInput, setRemoteCodeInput] = useState('')
+  const [channelLabel, setChannelLabel] = useState(null)
 
   useEffect(() => {
     Match.init({ role: user?.role, fields: user?.fields, resume: isCandidate ? resumeOf(user) : null })
+    setChannelLabel(Match.channelInfo())
     const off = Match.on('presence', setPresence)
     return () => { off(); Match.cancelSearch() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,10 +182,15 @@ export default function Dashboard() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
-            <div className="persp-toggle" title="Demo: scripted counterpart · Live: real peer in another tab">
+            <div className="persp-toggle" title="Demo: scripted counterpart · Live: real peer">
               <button className={mode === 'demo' ? 'on' : ''} onClick={() => setMode('demo')}>DEMO MATCH</button>
               <button className={mode === 'real' ? 'on' : ''} onClick={() => setMode('real')}>LIVE MATCH</button>
             </div>
+            {channelLabel && (
+              <span className="text-3" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                {channelLabel === 'supabase' ? '● cross-device matching on' : '● same-device only'}
+              </span>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span className="text-3" style={{ fontSize: 12, fontFamily: 'var(--font-mono)' }}>DEMO SPEED</span>
               <div className={`switch ${demo ? 'on' : ''}`} onClick={() => setDemo((d) => !d)} title="90-second sessions for demos" />
@@ -214,8 +221,8 @@ export default function Dashboard() {
             <p>
               {mode === 'real'
                 ? (isCandidate
-                  ? 'Open Catalyst in a second tab as a startup and press start — you\u2019ll match each other live, still blind. Falls back to a simulated match if no one is there.'
-                  : 'Open Catalyst in a second tab as a student and press start — you\u2019ll meet a live candidate, blind, on the role only.')
+                  ? 'Have a startup press start on another device or tab — you\u2019ll match each other live, still blind. Falls back to a simulated match if no one is there.'
+                  : 'Have a student press start on another device or tab — you\u2019ll meet a live candidate, blind, on the role only.')
                 : (isCandidate
                   ? '3 verified startups are hiring this role right now. You\u2019ll know the role — not the company.'
                   : 'The candidate\u2019s verified resume lands in your hands the moment you match — then you judge how they think, live.')}

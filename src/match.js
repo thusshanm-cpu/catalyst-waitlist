@@ -1,15 +1,23 @@
 // ————————————————————————————————————————————————————————————
 // Match — matchmaking + live session relay.
 //
-// Two transports, one API:
-//   • BroadcastChannel — tabs on the same origin find and join each
-//     other (radar matchmaking + presence) with no backend.
-//   • PeerJS (WebRTC data channel) — two devices on different networks
-//     connect with a short room code, then run the exact same live
-//     session (simulations, curveballs, whiteboard strokes, decisions).
+// Three transports, one API:
+//   • Supabase Realtime — devices on different networks announce
+//     presence and blind-match automatically (no codes, just press start).
+//   • BroadcastChannel — tabs on the same origin do the same with no backend.
+//   • PeerJS (WebRTC data channel) — a direct 1:1 link via a short room code.
 //
 // Names and companies are never exchanged — that's the point.
 // ————————————————————————————————————————————————————————————
+
+import { createClient } from '@supabase/supabase-js'
+
+// ——— Supabase Realtime (cross-device automatic matching) ———
+// Paste your project URL + public anon key (Dashboard → Project Settings → API).
+// These are safe to ship in the client. Leave both empty to use BroadcastChannel.
+const SUPABASE_URL = ''        // e.g. 'https://abcd1234.supabase.co'
+const SUPABASE_ANON_KEY = ''   // e.g. 'eyJhbGciOiJIUzI1NiIs...'
+const SUPABASE_ROOM = 'catalyst-match-v1'
 
 const CH = 'catalyst.match.v1'
 const HB_MS = 2000
@@ -63,9 +71,33 @@ function emit(event, payload) {
 
 function ensureChannel() {
   if (channel) return true
+
+  // Cross-device: a shared Supabase Realtime broadcast room.
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    try {
+      const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      const rt = client.channel(SUPABASE_ROOM, { config: { broadcast: { self: false } } })
+      rt.on('broadcast', { event: 'msg' }, ({ payload }) => handleMessage(payload))
+      rt.subscribe((status) => { if (status === 'SUBSCRIBED') emit('channel-open') })
+      channel = {
+        label: 'supabase',
+        send: (msg) => rt.send({ type: 'broadcast', event: 'msg', payload: msg }),
+        close: () => { try { client.removeChannel(rt) } catch { /* noop */ } },
+      }
+      return true
+    } catch {
+      channel = null // fall through to BroadcastChannel
+    }
+  }
+
   if (typeof BroadcastChannel === 'undefined') return false
-  channel = new BroadcastChannel(CH)
-  channel.onmessage = (e) => handleMessage(e.data)
+  const bc = new BroadcastChannel(CH)
+  bc.onmessage = (e) => handleMessage(e.data)
+  channel = {
+    label: 'broadcast',
+    send: (msg) => bc.postMessage(msg),
+    close: () => { try { bc.close() } catch { /* noop */ } },
+  }
   return true
 }
 
@@ -74,7 +106,7 @@ function post(msg) {
   if (remoteConn && remoteConn.open) {
     remoteConn.send(msg)
   } else {
-    channel?.postMessage(msg)
+    channel?.send(msg)
   }
 }
 
@@ -365,6 +397,11 @@ export const Match = {
 
   /** { mode, code, connected, matched } for the remote UI */
   remoteState,
+
+  /** active broadcast transport: 'supabase' | 'broadcast' | null */
+  channelInfo() {
+    return channel?.label || null
+  },
 
   /** true while a peer is still heartbeating (or the data channel is open) */
   isPeerOnline() {
