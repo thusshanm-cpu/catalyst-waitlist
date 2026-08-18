@@ -5,12 +5,14 @@ import { useToast } from '../toast.jsx'
 import { DEMO_PROFILES } from '../data.js'
 import Reveal from '../components/Reveal.jsx'
 import Waitlist from '../components/Waitlist.jsx'
+import { isPreview } from '../preview.js'
 import { Check, Zap, Bug, Target, Megaphone, Coins, Fingerprint, Shield, Building, Warning, ArrowUpRight } from '../components/icons.jsx'
 
 export default function Landing() {
   const { api } = useStore()
   const { toast } = useToast()
   const reduce = useReducedMotion()
+  const preview = isPreview()
 
   /* the hero mock drifts slower than the page — Motion scroll-linked parallax */
   const { scrollY } = useScroll()
@@ -45,8 +47,14 @@ export default function Landing() {
             <a href="#waitlist">Join the waitlist</a>
           </div>
           <div className="nav-actions">
-            <button className="btn btn-ghost btn-sm" onClick={() => go('employer')}>I&apos;m a startup</button>
-            <button className="btn btn-primary btn-sm" onClick={() => go('candidate')}>I&apos;m a student</button>
+            {preview ? (
+              <>
+                <button className="btn btn-ghost btn-sm" onClick={() => go('employer')}>I&apos;m a startup</button>
+                <button className="btn btn-primary btn-sm" onClick={() => go('candidate')}>I&apos;m a student</button>
+              </>
+            ) : (
+              <a href="#waitlist" className="btn btn-primary btn-sm">Join the waitlist</a>
+            )}
           </div>
         </div>
       </nav>
@@ -71,12 +79,15 @@ export default function Landing() {
             <Reveal delay={270}>
               <div className="hero-cta">
                 <a href="#waitlist" className="btn btn-primary btn-lg">Join the waitlist</a>
-                <button className="btn btn-violet btn-lg" onClick={() => go('candidate')}>Try the demo</button>
+                {preview && <button className="btn btn-violet btn-lg" onClick={() => go('candidate')}>Try the demo</button>}
               </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 22, flexWrap: 'wrap' }}>
-                <button className="btn btn-ghost btn-sm" onClick={() => instant('candidate')}><Zap size={13} /> Instant demo · student</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => instant('employer')}><Zap size={13} /> Instant demo · startup</button>
-              </div>
+              {preview && (
+                <div style={{ display: 'flex', gap: 10, marginTop: 22, flexWrap: 'wrap' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => instant('candidate')}><Zap size={13} /> Instant demo · student</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => instant('employer')}><Zap size={13} /> Instant demo · startup</button>
+                </div>
+              )}
+              {preview && <div className="hero-note"><span className="check"><Check size={13} /></span> Preview mode — demo flows enabled</div>}
             </Reveal>
           </div>
 

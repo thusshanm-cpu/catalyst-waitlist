@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react'
 import { StoreProvider, useStore } from './store.jsx'
 import { ToastProvider } from './toast.jsx'
+import { isPreview } from './preview.js'
 import Landing from './views/Landing.jsx'
 import Onboarding from './views/Onboarding.jsx'
 import Dashboard from './views/Dashboard.jsx'
@@ -11,6 +12,7 @@ import Profile from './views/Profile.jsx'
 
 function Router() {
   const { state } = useStore()
+  if (!isPreview()) return <Landing /> // public: never past the waitlist
   switch (state.view) {
     case 'onboarding':
       return <Onboarding />
