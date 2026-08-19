@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
+import { useCall } from '../call.js'
 import { SIMULATIONS, EVENTS, fieldLabel } from '../data.js'
 import { Mic, Pencil, Eraser, Trash, Zap, FileText, X, Spark, SIM_ICONS } from '../components/icons.jsx'
 
@@ -28,8 +29,6 @@ export default function Session() {
   const [activeEvent, setActiveEvent] = useState(null)
   const [wbOpen, setWbOpen] = useState(false)
   const [perspective, setPerspective] = useState(s?.perspective || 'candidate')
-  const [camOn, setCamOn] = useState(true)
-  const [micOn, setMicOn] = useState(true)
   const [mmLog, setMmLog] = useState('Finding verified matches…')
   const [peerOnline, setPeerOnline] = useState(true)
   const [activity, setActivity] = useState([])
@@ -43,6 +42,7 @@ export default function Session() {
   const isCandidate = persp === 'candidate'
   const isLive = phase === 'live'
   const inIntro = isLive && elapsed < s.introSecs
+  const call = useCall({ enabled: real, amOfferer: real ? Match.amOfferer() : false })
   useEffect(() => {
     if (!s) api.navigate('dashboard')
   }, [s, api])
@@ -178,7 +178,7 @@ export default function Session() {
           {phase === 'connecting' ? 'matching' : phase === 'countdown' ? 'hold tight' : inIntro ? 'intro · employer sets the scene' : 'unscripted'}
         </span>
         {real
-          ? <span className="st-phase" style={{ color: peerOnline ? 'var(--mint)' : 'var(--amber)', borderColor: peerOnline ? 'rgba(63,185,80,.4)' : 'rgba(210,153,34,.4)', background: peerOnline ? 'rgba(63,185,80,.08)' : 'rgba(210,153,34,.08)' }}>{peerOnline ? 'PEER LIVE' : 'PEER LEFT'}</span>
+          ? <span className="st-phase" style={{ color: peerOnline ? 'var(--mint)' : 'var(--amber)', borderColor: peerOnline ? 'rgba(63,185,80,.4)' : 'rgba(210,153,34,.4)', background: peerOnline ? 'rgba(63,185,80,.08)' : 'rgba(210,153,34,.08)' }}>{peerOnline ? (call.status === 'connected' ? 'PEER LIVE · VIDEO' : call.status === 'failed' ? 'VIDEO UNAVAILABLE' : 'PEER LIVE') : 'PEER LEFT'}</span>
           : <span className="st-phase" style={{ color: 'var(--text-2)', borderColor: 'var(--line-strong)', background: 'transparent' }}>DEMO MATCH</span>}
         <span className="st-spacer" />
         <span className="st-timer" style={{ color: remain < 30 && isLive ? 'var(--danger)' : 'var(--text)' }}>{fmt(remain)}</span>
@@ -197,18 +197,26 @@ export default function Session() {
           {!wbOpen ? (
             <>
               <div className="video-main">
-                <div className="counterpart-art">
-                  <div className="big-orb"><span>{s.counterpart.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</span></div>
-                  <div className="cp-name">{s.counterpart.name}</div>
-                  <div className="cp-role">{s.counterpart.title}{s.counterpart.org ? ` · ${s.counterpart.org}` : ''}</div>
-                  {isLive && !inIntro && !activeSim && !activeEvent && (
-                    <div className="session-notes" style={{ maxWidth: 380, margin: '18px auto 0' }}>
-                      {isCandidate
-                        ? 'They\u2019re reading you live — pacing, reasoning, recovery. There\u2019s no script to memorize, so be curious out loud.'
-                        : 'Watch for how they think, not what they know. Ask one question that has no rehearsed answer.'}
-                    </div>
-                  )}
-                </div>
+                {call.remoteStream ? (
+                  <RemoteVideo
+                    stream={call.remoteStream}
+                    label={s.counterpart.name}
+                    sub={`${s.counterpart.title}${s.counterpart.org ? ` · ${s.counterpart.org}` : ''}`}
+                  />
+                ) : (
+                  <div className="counterpart-art">
+                    <div className="big-orb"><span>{s.counterpart.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</span></div>
+                    <div className="cp-name">{s.counterpart.name}</div>
+                    <div className="cp-role">{s.counterpart.title}{s.counterpart.org ? ` · ${s.counterpart.org}` : ''}</div>
+                    {isLive && !inIntro && !activeSim && !activeEvent && (
+                      <div className="session-notes" style={{ maxWidth: 380, margin: '18px auto 0' }}>
+                        {isCandidate
+                          ? 'They\u2019re reading you live — pacing, reasoning, recovery. There\u2019s no script to memorize, so be curious out loud.'
+                          : 'Watch for how they think, not what they know. Ask one question that has no rehearsed answer.'}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {s.tagline && <div className="video-tag"><span className="mic">●</span>{isCandidate ? `${s.counterpart.title} · ${s.tagline}` : `${s.counterpart.title}`}</div>}
                 {s.counterpart.anon && (
                   <div className="video-tag" style={{ right: 14, left: 'auto' }}>
@@ -219,7 +227,7 @@ export default function Session() {
                 )}
               </div>
 
-              <SelfTile camOn={camOn} micOn={micOn} setCamOn={setCamOn} setMicOn={setMicOn} />
+              <SelfTile stream={call.localStream} camOn={call.camOn} micOn={call.micOn} camFailed={call.camFailed} toggleCam={call.toggleCam} toggleMic={call.toggleMic} />
 
               {phase === 'connecting' && <Matchmaking log={mmLog} field={s.role} real={real} />}
               {phase === 'countdown' && <Countdown />}
@@ -405,51 +413,49 @@ function Countdown() {
   )
 }
 
-/* ————— Self tile with webcam ————— */
+/* ————— Self tile (preview of the shared local stream) ————— */
 
-function SelfTile({ camOn, micOn, setCamOn, setMicOn }) {
+function SelfTile({ stream, camOn, micOn, camFailed, toggleCam, toggleMic }) {
   const videoRef = useRef(null)
-  const streamRef = useRef(null)
-  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    if (!camOn) {
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      streamRef.current = null
-      return
-    }
-    let cancelled = false
-    ;(async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return }
-        streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
-      } catch {
-        if (!cancelled) setFailed(true)
-      }
-    })()
-    return () => {
-      cancelled = true
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      streamRef.current = null
-    }
-  }, [camOn])
+    if (videoRef.current) videoRef.current.srcObject = stream || null
+  }, [stream])
 
   return (
     <div className="self-tile">
-      {camOn && !failed ? <video ref={videoRef} autoPlay playsInline muted /> : (
-        <div className="self-off">{failed ? 'camera blocked' : 'camera off'}</div>
+      {camOn && stream && !camFailed ? <video ref={videoRef} autoPlay playsInline muted /> : (
+        <div className="self-off">{camFailed ? 'camera blocked' : 'camera off'}</div>
       )}
       <div style={{ position: 'absolute', right: 6, top: 6, display: 'flex', gap: 5 }}>
-        <button className="wb-tool" onClick={() => setMicOn((m) => !m)} title="toggle mic" style={{ width: 26, height: 26 }}>
+        <button className="wb-tool" onClick={toggleMic} title="toggle mic" style={{ width: 26, height: 26 }}>
           <span style={{ color: micOn ? 'var(--mint)' : 'var(--text-3)' }}><Mic size={12} /></span>
         </button>
-        <button className="wb-tool" onClick={() => setCamOn((c) => !c)} title="toggle camera" style={{ width: 26, height: 26 }}>
+        <button className="wb-tool" onClick={toggleCam} title="toggle camera" style={{ width: 26, height: 26 }}>
           <span style={{ color: camOn ? 'var(--mint)' : 'var(--text-3)' }}>◉</span>
         </button>
       </div>
       <span className="you-tag">you {micOn ? '' : '· muted'}</span>
+    </div>
+  )
+}
+
+/* ————— Remote video ————— */
+
+function RemoteVideo({ stream, label, sub }) {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (ref.current) ref.current.srcObject = stream
+  }, [stream])
+
+  return (
+    <div className="remote-video">
+      <video ref={ref} autoPlay playsInline />
+      <div className="rv-label">
+        <span className="rv-name">{label}</span>
+        {sub && <span className="rv-sub">{sub}</span>}
+      </div>
     </div>
   )
 }

@@ -233,6 +233,10 @@ function handleMessage(msg) {
     case 'decision':
       if (matched && msg.to === matched.matchId) emit('remote-decision', msg.decision)
       break
+    // ——— WebRTC media signaling (routed by matchId) ———
+    case 'rtc':
+      if (matched && msg.to === matched.matchId) emit('remote-signal', msg.signal)
+      break
   }
 }
 
@@ -320,6 +324,15 @@ export const Match = {
   },
   sendDecision(d) {
     if (matched) post({ t: 'decision', to: matched.matchId, decision: d })
+  },
+  /** WebRTC offer/answer/ICE — the peer pair negotiates media over the same relay */
+  sendSignal(signal) {
+    if (matched) post({ t: 'rtc', to: matched.matchId, signal })
+  },
+  /** deterministic offerer (lower id) so exactly one side initiates WebRTC */
+  amOfferer() {
+    if (!matched) return false
+    return me.id < matched.peer.anonId
   },
 
   /** full reset (logout / fresh start) */
