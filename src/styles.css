@@ -44,23 +44,23 @@
 
 :root {
   /* canvas — deep-space observatory */
-  --bg: #0d1117;                       /* deep void — page canvas */
-  --bg-2: #000000;                     /* abyss — hero, terminal contexts */
+  --bg: #0a0c14;                       /* indigo void — page canvas */
+  --bg-2: #05060a;                     /* abyss — hero, terminal contexts */
   --surface: rgba(255, 255, 255, 0.06);  /* glass card */
   --surface-2: rgba(255, 255, 255, 0.1);
-  --surface-3: #151a22;                /* obsidian — inputs, chips, tiles */
+  --surface-3: #141726;                /* obsidian — inputs, chips, tiles */
   --line: rgba(255, 255, 255, 0.1);
-  --line-strong: #21262d;              /* slate edge — borders do the elevation */
+  --line-strong: #232838;              /* indigo edge — borders do the elevation */
   --text: #ffffff;
-  --text-2: #a4aea6;                   /* pearl */
-  --text-3: #7c8980;                   /* moss */
+  --text-2: #a7adc2;                   /* pearl */
+  --text-3: #7a8096;                   /* moss */
 
-  /* signal — a single green glow marks the path forward */
-  --cta: #08872b;                      /* terminal green — the ONLY filled CTA */
-  --cta-hover: #0a9e33;
-  --ember: #5fed83;                    /* phosphor — accent text + highlights, never the CTA fill */
-  --ember-soft: #8dd6ff;               /* sky — links, icons, secondary accents */
-  --ember-glow: rgba(95, 237, 131, 0.22);
+  /* brand — indigo trust signal; green reserved for the CTA */
+  --cta: #16a34a;                      /* hire green — the ONLY filled CTA */
+  --cta-hover: #22c55e;
+  --ember: #6d7cff;                    /* indigo — accent text + highlights, never the CTA fill */
+  --ember-soft: #9fb0ff;               /* indigo-soft — links, icons, secondary accents */
+  --ember-glow: rgba(109, 124, 255, 0.22);
   --violet: #8c93fb;                   /* ultraviolet — featured borders only */
   --violet-glow: rgba(140, 147, 251, 0.22);
   --mint: #3fb950;                     /* success / verified */
@@ -73,8 +73,8 @@
   --shadow: 0 0 0 0 transparent;       /* elevation = translucency + blur, never shadows */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-rest: cubic-bezier(0.25, 0.1, 0.25, 1);
-  --font-display: 'Schibsted Grotesk', 'Archivo', system-ui, sans-serif;
-  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Schibsted Grotesk', 'Archivo', system-ui, sans-serif;
+  --font-body: 'DM Sans', 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
@@ -1211,7 +1211,7 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 .page-glow {
   background:
     radial-gradient(1100px 560px at 82% -12%, rgba(140, 147, 251, 0.13), transparent 62%),
-    radial-gradient(900px 480px at 4% 8%, rgba(95, 237, 131, 0.045), transparent 58%),
+    radial-gradient(900px 480px at 4% 8%, rgba(109, 124, 255, 0.06), transparent 58%),
     radial-gradient(800px 500px at 50% 118%, rgba(141, 214, 255, 0.045), transparent 60%),
     linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
@@ -1226,22 +1226,22 @@ input, select, textarea { font-family: inherit; color: var(--text); }
   top: -160px; left: 50%;
   width: 940px; height: 600px;
   transform: translateX(-50%);
-  background: radial-gradient(closest-side, rgba(167, 162, 255, 0.32), transparent 72%);
+  background: radial-gradient(closest-side, rgba(109, 124, 255, 0.32), transparent 72%);
   filter: blur(60px);
   pointer-events: none;
 }
 .hero > * { position: relative; }
 
-/* the signal word: phosphor, solid — no text gradients */
+/* the signal word: indigo, solid — no text gradients */
 .hero-copy .display em {
   background: none;
   -webkit-background-clip: initial;
   background-clip: initial;
-  color: #5fed83;
+  color: #9fb0ff;
 }
 
-/* the one filled CTA: terminal green, white text, 6px radius */
-.btn-primary { background: var(--cta); color: #ffffff; border-color: var(--cta); }
+/* the one filled CTA: hire green, dark text, 6px radius */
+.btn-primary { background: var(--cta); color: #000000; border-color: var(--cta); }
 .btn-primary:hover { background: var(--cta-hover); border-color: var(--cta-hover); transform: translateY(-1px); }
 /* secondary actions: outlined, sky text — informational, not transactional */
 .btn-violet {
@@ -1265,17 +1265,17 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 .safety-tile { background: rgba(255, 255, 255, 0.045); }
 
 /* ticker dots glow phosphor; reading bar becomes a green trace */
-.ticker-group i { color: #5fed83; }
-.scroll-progress { background: linear-gradient(90deg, #08872b, #5fed83); }
+.ticker-group i { color: #6d7cff; }
+.scroll-progress { background: linear-gradient(90deg, #6d7cff, #8dd6ff); }
 
 /* cursor glow + sweep: violet atmosphere, not green */
 .cursor-glow { background: radial-gradient(circle, rgba(140, 147, 251, 0.09), transparent 62%); }
 .bg-sweep { background: linear-gradient(105deg, transparent 44%, rgba(140, 147, 251, 0.07) 50%, transparent 56%); }
 
 /* session countdown ring: ultraviolet; radar: violet rings, green core */
-.ring-fg { stroke: #8c93fb; }
+.ring-fg { stroke: #6d7cff; }
 .mm-rings .rr { border-color: rgba(140, 147, 251, 0.45); }
-.mm-rings .rr-core { background: #08872b; }
+.mm-rings .rr-core { background: #6d7cff; }
 
 /* toasts float on frost */
 .toast { box-shadow: none; background: rgba(22, 27, 34, 0.92); border-color: #21262d; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
@@ -1289,7 +1289,7 @@ input, select, textarea { font-family: inherit; color: var(--text); }
   position: fixed;
   top: 0; left: 0; right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--ember), var(--amber));
+  background: linear-gradient(90deg, var(--ember), var(--ember-soft));
   transform-origin: 0 50%;
   transform: scaleX(0);
   opacity: 0;

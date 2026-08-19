@@ -41,7 +41,7 @@ export default function Landing() {
           <div className="brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <svg className="brand-mark" viewBox="0 0 32 32">
               <rect width="32" height="32" rx="9" fill="none" stroke="rgba(255,255,255,.25)" />
-              <circle cx="14" cy="16" r="5" fill="#5fed83" />
+              <circle cx="14" cy="16" r="5" fill="#6d7cff" />
               <circle cx="22" cy="10" r="3" fill="#8dd6ff" />
               <circle cx="22" cy="22" r="3" fill="#8c93fb" />
             </svg>
@@ -592,9 +592,9 @@ function CollabMock() {
       </div>
       <div style={{ height: 260, background: '#000000', position: 'relative' }}>
         <svg viewBox="0 0 400 260" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-          <line x1="60" y1="200" x2="220" y2="120" stroke="rgba(95,237,131,.7)" strokeWidth="3" strokeLinecap="round" />
+          <line x1="60" y1="200" x2="220" y2="120" stroke="rgba(109,124,255,.7)" strokeWidth="3" strokeLinecap="round" />
           <line x1="220" y1="120" x2="330" y2="160" stroke="rgba(210,153,34,.8)" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 5" />
-          <rect x="150" y="150" width="70" height="50" fill="none" stroke="rgba(63,185,80,.6)" strokeWidth="2" />
+          <rect x="150" y="150" width="70" height="50" fill="none" stroke="rgba(109,124,255,.6)" strokeWidth="2" />
           <circle cx="330" cy="160" r="6" fill="rgba(210,153,34,.9)" />
           <text x="30" y="40" fill="rgba(255,255,255,.45)" fontSize="12" fontFamily="IBM Plex Mono, monospace">retention flow — sketch</text>
           <text x="60" y="212" fill="rgba(255,255,255,.35)" fontSize="11" fontFamily="IBM Plex Mono, monospace">drop-off here?</text>
