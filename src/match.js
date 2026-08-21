@@ -14,8 +14,8 @@ import { createClient } from '@supabase/supabase-js'
 // ——— Supabase Realtime (cross-device automatic matching) ———
 // Project URL + publishable key (Dashboard → Project Settings → API).
 // These are safe to ship in the client. Leave both empty to use BroadcastChannel.
-const SUPABASE_URL = 'https://aazquqwcfpbnoouinmhn.supabase.co'
-const SUPABASE_ANON_KEY = 'sb_publishable_8-zmag01KDM6IeJW7DWqJw_VOU8p6oy'
+export const SUPABASE_URL = 'https://aazquqwcfpbnoouinmhn.supabase.co'
+export const SUPABASE_ANON_KEY = 'sb_publishable_8-zmag01KDM6IeJW7DWqJw_VOU8p6oy'
 const SUPABASE_ROOM = 'catalyst-match-v1'
 
 const CH = 'catalyst.match.v1'

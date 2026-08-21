@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
+import { track } from '../analytics.js'
 import { CANDIDATE_QUEUE, CANDIDATES, EMPLOYER_QUEUE, STARTUPS, fieldLabel, SIMULATIONS } from '../data.js'
 import { FIELD_ICONS, SIM_ICONS, Calendar, Compass, Spark } from '../components/icons.jsx'
 
@@ -90,6 +91,7 @@ export default function Dashboard() {
       off()
       setSearching(null)
       launch(m.field || field, roleType, { real: true, anon: m.peer })
+      track('match_started', { role: roleType, field: m.field || field })
       toast('Live peer matched — secure link established', '🔗')
     })
     const ok = Match.startSearch(field)
@@ -100,14 +102,16 @@ export default function Dashboard() {
       launch(field, roleType)
       return
     }
+    // Give real users a real window to press start on the other device.
+    // If no one shows up, fall back to a simulated match — clearly labeled.
     setTimeout(() => {
       if (Match.matchedInfo()) return
       off()
       setSearching(null)
       Match.cancelSearch()
-      toast('No live peer found — starting a simulated match instead', '🎭')
+      toast('No live peer found in 25s — starting a simulated match instead', '🎭')
       launch(field, roleType)
-    }, 12000)
+    }, 25000)
   }
 
   const histStatus = { saved: { t: 'Saved', c: 'saved' }, followup: { t: 'Follow-up asked', c: 'followup' }, continued: { t: 'Kept talking', c: 'saved' }, time: { t: 'Time up', c: 'saved' }, ended: { t: 'Ended', c: 'skipped' }, skipped: { t: 'Skipped', c: 'skipped' } }

@@ -843,6 +843,21 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 .rv-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
 .rv-sub { color: var(--text-2); font-size: 11.5px; }
 
+.pl-overlay {
+  position: absolute; inset: 0; z-index: 8;
+  display: grid; place-items: center;
+  background: rgba(5, 8, 12, 0.72); backdrop-filter: blur(6px);
+}
+.pl-card {
+  max-width: 380px; text-align: center;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg); padding: 26px 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+.pl-card h3 { font-family: var(--font-display); font-size: 18px; margin-bottom: 8px; }
+.pl-card p { color: var(--text-2); font-size: 13.5px; line-height: 1.55; }
+.pl-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+
 .video-tag {
   position: absolute; left: 14px; bottom: 14px; z-index: 3;
   display: flex; align-items: center; gap: 8px;

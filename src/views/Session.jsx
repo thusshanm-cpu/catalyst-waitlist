@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
 import { useCall } from '../call.js'
+import { track } from '../analytics.js'
 import { SIMULATIONS, EVENTS, fieldLabel } from '../data.js'
 import { Mic, Pencil, Eraser, Trash, Zap, FileText, X, Spark, SIM_ICONS } from '../components/icons.jsx'
 
@@ -31,6 +32,7 @@ export default function Session() {
   const [perspective, setPerspective] = useState(s?.perspective || 'candidate')
   const [mmLog, setMmLog] = useState('Finding verified matches…')
   const [peerOnline, setPeerOnline] = useState(true)
+  const [peerLeftDismissed, setPeerLeftDismissed] = useState(false)
   const [activity, setActivity] = useState([])
   const firedEvent = useRef(false)
   const ended = useRef(false)
@@ -46,6 +48,26 @@ export default function Session() {
   useEffect(() => {
     if (!s) api.navigate('dashboard')
   }, [s, api])
+
+  /* analytics: did the call actually connect? */
+  const connectedTracked = useRef(false)
+  const failedTracked = useRef(false)
+  useEffect(() => {
+    if (!real) return
+    if (call.status === 'connected' && !connectedTracked.current) {
+      connectedTracked.current = true
+      track('call_connected', { role: s?.roleType, field: s?.field })
+    } else if (call.status === 'failed' && !failedTracked.current) {
+      failedTracked.current = true
+      track('call_failed', { role: s?.roleType, field: s?.field })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [call.status, real, s?.roleType, s?.field])
+
+  /* if the peer's heartbeat comes back (transient drop), clear the overlay */
+  useEffect(() => {
+    if (peerOnline && peerLeftDismissed) setPeerLeftDismissed(false)
+  }, [peerOnline, peerLeftDismissed])
 
   /* live peer relay — real cross-tab matches */
   useEffect(() => {
@@ -73,7 +95,10 @@ export default function Session() {
         toast('Employer closed the scenario', '✕')
       }),
       Match.on('remote-end', () => endNow(true)),
-      Match.on('peer-offline', () => setPeerOnline(false)),
+      Match.on('peer-offline', () => {
+        setPeerOnline(false)
+        track('peer_left', { role: s?.roleType, field: s?.field })
+      }),
     ]
     const iv = setInterval(() => setPeerOnline(Match.isPeerOnline()), 2500)
     return () => { offs.forEach((o) => o()); clearInterval(iv) }
@@ -129,6 +154,7 @@ export default function Session() {
     if (isLive && elapsed >= s.duration && !ended.current) {
       ended.current = true
       if (real) Match.sendEnd()
+      track('session_ended', { decision: 'time', mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
       api.endSession({ decision: 'time' })
       toast(`Time\u2019s up — ${fmt(s.duration)}. Decision time.`, '⏱️')
     }
@@ -165,6 +191,7 @@ export default function Session() {
     if (ended.current) return
     ended.current = true
     if (real && !fromRemote) Match.sendEnd()
+    track('session_ended', { decision: 'ended', mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
     api.endSession({ decision: 'ended' })
   }
 
@@ -231,6 +258,9 @@ export default function Session() {
 
               {phase === 'connecting' && <Matchmaking log={mmLog} field={s.role} real={real} />}
               {phase === 'countdown' && <Countdown />}
+              {real && isLive && !peerOnline && !peerLeftDismissed && (
+                <PeerLeftOverlay onEnd={() => endNow()} onContinue={() => setPeerLeftDismissed(true)} />
+              )}
               {activeEvent && <EventCard ev={activeEvent} onDone={() => { if (real && isCandidate) Match.sendEventHandled(activeEvent.title); setActiveEvent(null) }} />}
             </>
           ) : (
@@ -382,6 +412,23 @@ function Matchmaking({ log, field, real }) {
           )}
         </p>
         <div className="mm-log">{log}</div>
+      </div>
+    </div>
+  )
+}
+
+/* ————— Peer left ————— */
+
+function PeerLeftOverlay({ onEnd, onContinue }) {
+  return (
+    <div className="pl-overlay">
+      <div className="pl-card">
+        <h3>Your match left the session</h3>
+        <p>The live link dropped — your peer is no longer in the room. Your shared tools (whiteboard, simulations) stay open on your side.</p>
+        <div className="pl-actions">
+          <button className="btn btn-ghost" onClick={onContinue}>Keep the room open</button>
+          <button className="btn btn-danger" onClick={onEnd}>End session</button>
+        </div>
       </div>
     </div>
   )

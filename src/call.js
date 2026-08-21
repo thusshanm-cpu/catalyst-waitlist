@@ -5,8 +5,10 @@
 // blind-match), so the SDP/ICE negotiation rides that same relay —
 // no codes, no new accounts. Media flows peer-to-peer via WebRTC.
 //
-// STUN-only for now: works on most home networks. Symmetric NAT /
-// restrictive corporate networks may need a TURN server later.
+// STUN for most home networks + a free public TURN relay so symmetric
+// NAT and restrictive networks can still connect. TURN relays media
+// through a third party (fine for beta; a private relay is the
+// production upgrade).
 // ————————————————————————————————————————————————————————————
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -14,7 +16,18 @@ import { Match } from './match.js'
 
 const RTC_CONFIG = {
   iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:global.stun.twilio.com:3478'] },
+    {
+      urls: [
+        'stun:stun.l.google.com:19302',
+        'stun:global.stun.twilio.com:3478',
+        'stun:openrelay.metered.ca:80',
+      ],
+    },
+    {
+      urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
 }
 

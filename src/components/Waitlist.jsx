@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { FIELDS } from '../data.js'
 import { joinWaitlist, validEmail } from '../waitlist.js'
-import { Check, Send, GraduationCap, Building, Handshake } from './icons.jsx'
+import { markJoined } from '../preview.js'
+import { Check, Send, GraduationCap, Building, Handshake, ArrowUpRight } from './icons.jsx'
 
 const ROLE_COPY = {
   candidate: {
@@ -29,6 +31,7 @@ const ROLE_ICONS = {
 }
 
 export default function Waitlist({ initialRole = 'candidate' }) {
+  const { api } = useStore()
   const { toast } = useToast()
   const [role, setRole] = useState(initialRole)
   const [email, setEmail] = useState('')
@@ -55,10 +58,12 @@ export default function Waitlist({ initialRole = 'candidate' }) {
     if (res.ok) {
       setPosition(res.position)
       setStatus('done')
+      markJoined() // unlock the demo on this device
       toast(`You're #${res.position} on the list`, '✓')
     } else if (res.reason === 'exists') {
       setPosition(res.position)
       setStatus('exists')
+      markJoined()
     } else {
       setStatus('idle')
       setError("Something went wrong — please try again.")
@@ -74,6 +79,10 @@ export default function Waitlist({ initialRole = 'candidate' }) {
         <p className="wl-pos">Position <b>#{position}</b></p>
         <p className="wl-note">{copy.success}</p>
         {already && <p className="wl-note">No need to rejoin — we already have your email.</p>}
+        <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => api.navigate('onboarding')}>
+          You&apos;re in — try the demo <ArrowUpRight size={15} />
+        </button>
+        <p className="wl-note" style={{ marginTop: 8 }}>A ten-minute blind session with a real match — no install, no account.</p>
       </div>
     )
   }

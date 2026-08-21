@@ -5,7 +5,7 @@ import { useToast } from '../toast.jsx'
 import { DEMO_PROFILES } from '../data.js'
 import Reveal from '../components/Reveal.jsx'
 import Waitlist from '../components/Waitlist.jsx'
-import { isPreview } from '../preview.js'
+import { isPreview, canDemo } from '../preview.js'
 import { Check, Zap, Bug, Target, Megaphone, Coins, Fingerprint, Shield, Building, Warning, ArrowUpRight, Handshake } from '../components/icons.jsx'
 
 export default function Landing() {
@@ -13,6 +13,7 @@ export default function Landing() {
   const { toast } = useToast()
   const reduce = useReducedMotion()
   const preview = isPreview()
+  const demo = canDemo() // judges (?preview=1) and people who joined
 
   /* the hero mock drifts slower than the page — Motion scroll-linked parallax */
   const { scrollY } = useScroll()
@@ -55,7 +56,7 @@ export default function Landing() {
             <a href="#waitlist">Join the waitlist</a>
           </div>
           <div className="nav-actions">
-            {preview ? (
+            {demo ? (
               <>
                 <button className="btn btn-ghost btn-sm" onClick={() => go('employer')}>I&apos;m a startup</button>
                 <button className="btn btn-primary btn-sm" onClick={() => go('candidate')}>I&apos;m a student</button>
@@ -87,15 +88,15 @@ export default function Landing() {
             <Reveal delay={270}>
               <div className="hero-cta">
                 <a href="#waitlist" className="btn btn-primary btn-lg">Join the waitlist</a>
-                {preview && <button className="btn btn-violet btn-lg" onClick={() => go('candidate')}>Try the demo</button>}
+                {demo && <button className="btn btn-violet btn-lg" onClick={() => go('candidate')}>Try the demo</button>}
               </div>
-              {preview && (
+              {demo && (
                 <div style={{ display: 'flex', gap: 10, marginTop: 22, flexWrap: 'wrap' }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => instant('candidate')}><Zap size={13} /> Instant demo · student</button>
                   <button className="btn btn-ghost btn-sm" onClick={() => instant('employer')}><Zap size={13} /> Instant demo · startup</button>
                 </div>
               )}
-              {preview && <div className="hero-note"><span className="check"><Check size={13} /></span> Preview mode — demo flows enabled</div>}
+              {demo && <div className="hero-note"><span className="check"><Check size={13} /></span> {preview ? 'Preview mode — demo flows enabled' : 'You\u2019re in — demo unlocked'}</div>}
             </Reveal>
           </div>
 
@@ -320,7 +321,7 @@ export default function Landing() {
       <footer className="footer">
         <div className="container footer-inner">
           <div className="brand" style={{ cursor: 'default' }}>Catalyst</div>
-          <div className="small">Prototype for the hackathon — every flow is simulated, no real data is stored.</div>
+          <div className="small">Early beta — the waitlist, live matching, and video sessions are real. Verification, hiring, and AI summaries are simulated until launch.</div>
         </div>
       </footer>
     </div>
@@ -431,7 +432,7 @@ function ReelScene1() {
         <div className="reel-log">
           <span>scanning verified room · field: software</span>
           <span>secure link established</span>
-          <span className="ok">MATCHED — Helios Robotics, blind</span>
+          <span className="ok">MATCHED — role only · identity hidden</span>
         </div>
       </div>
       <span className="reel-chip chip-in">✓ VERIFIED BOTH SIDES</span>
@@ -443,7 +444,7 @@ function ReelScene1() {
 function ReelScene2({ mm, ss }) {
   return (
     <div className="reel-live">
-      <div className="rl-tile a"><span className="mono-tile">HR</span><span className="rl-tag">Founder · Helios Robotics</span></div>
+      <div className="rl-tile a"><span className="mono-tile">VS</span><span className="rl-tag">Verified startup · Hiring Software Engineering</span></div>
       <div className="rl-tile b"><span className="mono-tile you">YOU</span><span className="rl-tag you">You · camera on</span></div>
       <div className="rl-top">
         <span className="live-dot" /><span className="rl-live">LIVE</span>
@@ -549,10 +550,10 @@ function LiveMock() {
       </div>
       <div className="mock-stage">
         <div className="mock-tile a">
-          <div className="tile-art"><div className="mono-tile"><span>HR</span></div></div>
+          <div className="tile-art"><div className="mono-tile"><span>VS</span></div></div>
           <div className="tile-tag">
-            <span>Founder</span>
-            <span className="small">· Helios Robotics</span>
+            <span>Verified startup</span>
+            <span className="small">· hiring software</span>
           </div>
         </div>
         <div className="mock-tile b">

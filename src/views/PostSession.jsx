@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
+import { track } from '../analytics.js'
 import { buildSummary } from '../data.js'
 import { ChatBubble, Calendar, Bookmark, ArrowRight, Spark } from '../components/icons.jsx'
 
@@ -40,6 +41,7 @@ export default function PostSession() {
     const dObj = DECISIONS.find((x) => x.id === d)
     toast(`${dObj.title} — ${d === 'skipped' ? 'moving on' : 'noted'}`, d === 'skipped' ? '↪' : '✓')
     if (real) Match.sendDecision(d)
+    track('decision', { decision: d, mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
   }
 
   const generate = () => {
