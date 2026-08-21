@@ -1,0 +1,9 @@
+# Supabase CLI project config — lets `supabase link` / `supabase functions deploy`
+# target this project from the repo.
+project_id = "aazquqwcfpbnoouinmhn"
+
+[functions.session-summary]
+# The client calls with the publishable key, which the legacy JWT check can
+# reject — keep JWT off for the beta (the function still requires LLM_API_KEY
+# to do anything). Flip to true when you gate this behind auth.
+verify_jwt = false

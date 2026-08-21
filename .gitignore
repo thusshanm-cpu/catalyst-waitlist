@@ -26,3 +26,6 @@ Thumbs.db
 
 # UI/UX Pro Max skill (install with: npx ui-ux-pro-max-cli init --ai universal)
 .agents/
+
+# Supabase CLI local link metadata
+supabase/.temp/
