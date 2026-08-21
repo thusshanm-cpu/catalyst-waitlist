@@ -6,10 +6,11 @@ import { DEMO_PROFILES } from '../data.js'
 import Reveal from '../components/Reveal.jsx'
 import Waitlist from '../components/Waitlist.jsx'
 import { isPreview, canDemo } from '../preview.js'
+import { signUp, signIn } from '../auth.js'
 import { Check, Zap, Bug, Target, Megaphone, Coins, Fingerprint, Shield, Building, Warning, ArrowUpRight, Handshake } from '../components/icons.jsx'
 
 export default function Landing() {
-  const { api } = useStore()
+  const { state, api } = useStore()
   const { toast } = useToast()
   const reduce = useReducedMotion()
   const preview = isPreview()
@@ -19,7 +20,16 @@ export default function Landing() {
   const { scrollY } = useScroll()
   const mockY = useTransform(scrollY, [0, 900], [0, 81])
 
-  const go = (role) => api.navigate('onboarding') /* role picked on the onboarding step 1 */
+  /* real accounts: sign up/sign in first, then onboard. Demo: straight in. */
+  const [authModal, setAuthModal] = useState(false)
+  const go = (role) => {
+    if (state.authUser) api.navigate('onboarding')
+    else setAuthModal(true) /* role picked on the onboarding step 1 */
+  }
+  const onAuthed = () => {
+    setAuthModal(false)
+    api.navigate(state.user ? 'dashboard' : 'onboarding')
+  }
 
   /* waitlist segment shortcut: jump to the form with the right role preselected */
   const [waitlistRole, setWaitlistRole] = useState('candidate')
@@ -62,7 +72,10 @@ export default function Landing() {
                 <button className="btn btn-primary btn-sm" onClick={() => go('candidate')}>I&apos;m a student</button>
               </>
             ) : (
-              <a href="#waitlist" className="btn btn-primary btn-sm">Join the waitlist</a>
+              <>
+                <button className="btn btn-ghost btn-sm" onClick={() => setAuthModal(true)}>Sign in</button>
+                <a href="#waitlist" className="btn btn-primary btn-sm">Join the waitlist</a>
+              </>
             )}
           </div>
         </div>
@@ -88,7 +101,7 @@ export default function Landing() {
             <Reveal delay={270}>
               <div className="hero-cta">
                 <a href="#waitlist" className="btn btn-primary btn-lg">Join the waitlist</a>
-                {demo && <button className="btn btn-violet btn-lg" onClick={() => go('candidate')}>Try the demo</button>}
+                {demo && <button className="btn btn-violet btn-lg" onClick={() => api.navigate('onboarding')}>Try the demo</button>}
               </div>
               {demo && (
                 <div style={{ display: 'flex', gap: 10, marginTop: 22, flexWrap: 'wrap' }}>
@@ -106,7 +119,7 @@ export default function Landing() {
         <div className="container">
           <div className="hero-stats">
             <div className="stat"><div className="num">10<em>:</em>00</div><div className="lbl">one session, start to finish</div></div>
-            <div className="stat"><div className="num">100<em>%</em></div><div className="lbl">accounts manually verified first</div></div>
+            <div className="stat"><div className="num">100<em>%</em></div><div className="lbl">human-reviewed accounts</div></div>
             <div className="stat"><div className="num">0</div><div className="lbl">advance notice. no canned answers</div></div>
           </div>
         </div>
@@ -285,7 +298,7 @@ export default function Landing() {
                 </p>
               </div>
               <div className="consent-box" style={{ marginTop: 0 }}>
-                {['Clear consent form before you ever join a session', 'Recording & AI analysis are always opt-in, per session', 'AI writes observations, never verdicts', 'Withdraw consent anytime the law allows'].map((t) => (
+                {['Clear consent form before you ever join a session', 'Recording & AI analysis are always opt-in, per session', 'AI writes observations, never verdicts', 'Withdraw consent anytime'].map((t) => (
                   <div className="row" key={t}><span className="tick"><Check size={13} /></span>{t}</div>
                 ))}
               </div>
@@ -324,6 +337,77 @@ export default function Landing() {
           <div className="small">Early beta — the waitlist, live matching, and video sessions are real. Verification, hiring, and AI summaries are simulated until launch.</div>
         </div>
       </footer>
+
+      {authModal && <AuthModal onClose={() => setAuthModal(false)} onDone={onAuthed} />}
+    </div>
+  )
+}
+
+/* ————— Account modal (Supabase Auth) ————— */
+
+function AuthModal({ onClose, onDone }) {
+  const [mode, setMode] = useState('signup') // signup | signin
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    try {
+      if (mode === 'signup') {
+        const res = await signUp({ email, password })
+        if (res.error) setError(res.error.message)
+        else if (res.needsConfirm) setSent(true)
+        else onDone()
+      } else {
+        const res = await signIn({ email, password })
+        if (res.error) setError(res.error.message)
+        else onDone()
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="auth-overlay" onClick={onClose}>
+      <div className="auth-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button className="auth-close" onClick={onClose} aria-label="Close">×</button>
+        {sent ? (
+          <>
+            <h3>Check your email</h3>
+            <p className="text-2">We sent a confirmation link to <b>{email}</b>. Confirm it, then sign in.</p>
+            <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={() => { setSent(false); setMode('signin') }}>I&apos;ve confirmed — sign in</button>
+          </>
+        ) : (
+          <>
+            <h3>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h3>
+            <p className="text-2">{mode === 'signup' ? 'Real accounts, real verification — takes about a minute.' : 'Sign in to continue your sessions.'}</p>
+            <div className="auth-tabs">
+              <button className={mode === 'signup' ? 'on' : ''} onClick={() => setMode('signup')}>Sign up</button>
+              <button className={mode === 'signin' ? 'on' : ''} onClick={() => setMode('signin')}>Sign in</button>
+            </div>
+            <form onSubmit={submit} noValidate>
+              <div className="form-item">
+                <label htmlFor="auth-email">Email</label>
+                <input id="auth-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+              </div>
+              <div className="form-item">
+                <label htmlFor="auth-password">Password</label>
+                <input id="auth-password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} required minLength={6} />
+              </div>
+              {error && <p className="wl-error">{error}</p>}
+              <button className="btn btn-primary btn-lg" type="submit" disabled={busy} style={{ width: '100%', marginTop: 6 }}>
+                {busy ? 'Working…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
     </div>
   )
 }

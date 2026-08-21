@@ -1,27 +1,26 @@
 // ————————————————————————————————————————————————————————————
 // Match — matchmaking + live session relay.
 //
-// Two transports, one API:
-//   • Supabase Realtime — devices on different networks announce
-//     presence and blind-match automatically (no codes, just press start).
-//   • BroadcastChannel — tabs on the same origin do the same with no backend.
+// Matching is ASYNC: a search persists as an offer row in Supabase
+// for up to 5 minutes, so two people don't have to press start at the
+// same time. Whoever arrives second claims the waiting offer and a
+// `matches` row is created — both sides pick it up when they're online.
+// Requires the tables in supabase/schema.sql. If Supabase is
+// unreachable, it falls back to a same-device BroadcastChannel.
 //
-// Names and companies are never exchanged — that's the point.
+// After matching, all session signals (whiteboard, simulations,
+// decisions, WebRTC media) route through one relay keyed by matchId.
+// Names and companies are never exchanged before the match.
 // ————————————————————————————————————————————————————————————
 
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from './supabase.js'
 
-// ——— Supabase Realtime (cross-device automatic matching) ———
-// Project URL + publishable key (Dashboard → Project Settings → API).
-// These are safe to ship in the client. Leave both empty to use BroadcastChannel.
-export const SUPABASE_URL = 'https://aazquqwcfpbnoouinmhn.supabase.co'
-export const SUPABASE_ANON_KEY = 'sb_publishable_8-zmag01KDM6IeJW7DWqJw_VOU8p6oy'
 const SUPABASE_ROOM = 'catalyst-match-v1'
-
 const CH = 'catalyst.match.v1'
 const HB_MS = 2000
 const SEARCH_MS = 1200
 const STALE_MS = 6500
+const OFFER_TTL_MS = 5 * 60 * 1000
 
 let channel = null
 let me = null            // { id, role, fields, resume }
@@ -32,8 +31,10 @@ let searchTimer = null
 let hbTimer = null
 let pruneTimer = null
 let matched = null       // { matchId, peer: anon, startAt }
-let pendingOffer = null  // { matchId } we offered and are awaiting acceptance
-let listeners = new Map() // event -> Set<fn>
+let pendingOffer = null  // legacy protocol: we offered and await acceptance
+let offerId = null       // async protocol: our waiting offer row id
+let offerSub = null      // realtime subscription on our offer row
+let listeners = new Map()
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 
@@ -61,21 +62,18 @@ function ensureChannel() {
   if (channel) return true
 
   // Cross-device: a shared Supabase Realtime broadcast room.
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-    try {
-      const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-      const rt = client.channel(SUPABASE_ROOM, { config: { broadcast: { self: false } } })
-      rt.on('broadcast', { event: 'msg' }, ({ payload }) => handleMessage(payload))
-      rt.subscribe((status) => { if (status === 'SUBSCRIBED') emit('channel-open') })
-      channel = {
-        label: 'supabase',
-        send: (msg) => rt.send({ type: 'broadcast', event: 'msg', payload: msg }),
-        close: () => { try { client.removeChannel(rt) } catch { /* noop */ } },
-      }
-      return true
-    } catch {
-      channel = null // fall through to BroadcastChannel
+  try {
+    const rt = supabase.channel(SUPABASE_ROOM, { config: { broadcast: { self: false } } })
+    rt.on('broadcast', { event: 'msg' }, ({ payload }) => handleMessage(payload))
+    rt.subscribe((status) => { if (status === 'SUBSCRIBED') emit('channel-open') })
+    channel = {
+      label: 'supabase',
+      send: (msg) => rt.send({ type: 'broadcast', event: 'msg', payload: msg }),
+      close: () => { try { supabase.removeChannel(rt) } catch { /* noop */ } },
     }
+    return true
+  } catch {
+    channel = null // fall through to BroadcastChannel
   }
 
   if (typeof BroadcastChannel === 'undefined') return false
@@ -126,12 +124,11 @@ function heartbeat() {
   emit('presence', presence())
 }
 
-/* ————— matching protocol ————— */
+/* ————— matching: legacy simultaneous protocol (no backend) ————— */
 
-function startSearch(field) {
-  if (!ensureChannel() || !me) return false
+function legacyStartSearch(field) {
   cancelSearch()
-  matched = null // a fresh search starts a fresh match
+  matched = null
   isSearching = true
   searchingField = field
   post({ t: 'searching', id: me.id, role: me.role, fields: me.fields, field })
@@ -139,15 +136,25 @@ function startSearch(field) {
     if (!isSearching) return
     post({ t: 'searching', id: me.id, role: me.role, fields: me.fields, field: searchingField })
   }, SEARCH_MS)
-  return true
+}
+
+function legacyCancelSearch() {
+  if (searchTimer) clearInterval(searchTimer)
+  searchTimer = null
 }
 
 function cancelSearch() {
   isSearching = false
   searchingField = null
   pendingOffer = null
-  if (searchTimer) clearInterval(searchTimer)
-  searchTimer = null
+  legacyCancelSearch()
+  // the offer row stays live until it expires — someone may claim it while
+  // we're away, and checkPendingMatch() picks it up on our return
+  offerId = null
+  if (offerSub) {
+    try { offerSub.unsubscribe() } catch { /* noop */ }
+    offerSub = null
+  }
 }
 
 function setMatched(matchId, peerAnon, offerField) {
@@ -156,6 +163,136 @@ function setMatched(matchId, peerAnon, offerField) {
   matched = { matchId, peer: peerAnon, field: offerField, startAt: Date.now() }
   emit('match', { ...matched })
 }
+
+/* ————— matching: async over Postgres ————— */
+
+async function asyncStartSearch(field) {
+  cancelSearch()
+  matched = null
+  isSearching = true
+  searchingField = field
+
+  try {
+    const opp = me.role === 'candidate' ? 'employer' : 'candidate'
+    // 1. Try to claim an existing waiting offer (anyone who searched in the last 5 min).
+    const { data: offers, error } = await supabase
+      .from('search_offers')
+      .select('*')
+      .eq('status', 'waiting')
+      .eq('role', opp)
+      .contains('fields', [field])
+      .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: true })
+      .limit(5)
+    if (offers?.length) {
+      for (const offer of offers) {
+        if (await claimOffer(offer, field)) return true
+      }
+    }
+    if (error) throw error
+    // 2. No one waiting — persist our own offer and watch for it being claimed.
+    return await createOffer(field)
+  } catch {
+    // Supabase tables not ready / offline — fall back to the simultaneous protocol.
+    legacyStartSearch(field)
+    return true
+  }
+}
+
+async function claimOffer(offer, field) {
+  // Optimistic claim — only succeeds while the offer is still waiting.
+  const { data, error } = await supabase
+    .from('search_offers')
+    .update({ status: 'claimed' })
+    .eq('id', offer.id)
+    .eq('status', 'waiting')
+    .select()
+  if (error || !data?.length) return false
+
+  // Persist the match so the other side can pick it up later.
+  const { data: matchRow, error: matchErr } = await supabase
+    .from('matches')
+    .insert({
+      a_id: me.id,
+      b_id: offer.owner_id,
+      a_anon: anonFor(me.role, field),
+      b_anon: offer.anon || { anonId: offer.owner_id, role: offer.role, field, roleType: offer.role === 'employer' ? 'startup' : 'Intern', note: 'Verified peer' },
+      field,
+      status: 'pending',
+    })
+    .select()
+    .single()
+  if (matchErr || !matchRow) return false
+
+  await supabase.from('search_offers').update({ status: 'matched', match_id: matchRow.id }).eq('id', offer.id)
+  setMatched(matchRow.id, matchRow.b_anon, field)
+  return true
+}
+
+async function createOffer(field) {
+  const { data, error } = await supabase
+    .from('search_offers')
+    .insert({
+      owner_id: me.id,
+      role: me.role,
+      fields: me.fields.length ? me.fields : [field],
+      anon: anonFor(me.role, field),
+      status: 'waiting',
+      expires_at: new Date(Date.now() + OFFER_TTL_MS).toISOString(),
+    })
+    .select()
+    .single()
+  if (error || !data) {
+    legacyStartSearch(field)
+    return true
+  }
+  offerId = data.id
+  // Watch for our offer being claimed — someone matched us.
+  offerSub = supabase
+    .channel('offer-' + data.id)
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'search_offers', filter: 'id=eq.' + data.id,
+    }, async (payload) => {
+      const row = payload.new
+      if (row.status === 'claimed' || row.status === 'matched') {
+        await onOfferClaimed(row)
+      }
+    })
+    .subscribe()
+  return true
+}
+
+async function onOfferClaimed(offerRow) {
+  cancelSearch()
+  if (!offerRow.match_id) return
+  const { data: m } = await supabase.from('matches').select('*').eq('id', offerRow.match_id).maybeSingle()
+  if (!m) return
+  const meIsA = m.a_id === me.id
+  setMatched(m.id, meIsA ? m.b_anon : m.a_anon, m.field)
+}
+
+/** a match made while we were away — fetch and adopt it, if any */
+async function checkPendingMatch() {
+  if (!me) return null
+  try {
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .or(`a_id.eq.${me.id},b_id.eq.${me.id}`)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    const m = data?.[0]
+    if (!m) return null
+    const meIsA = m.a_id === me.id
+    setMatched(m.id, meIsA ? m.b_anon : m.a_anon, m.field)
+    return m
+  } catch {
+    return null
+  }
+}
+
+/* ————— message routing ————— */
 
 function handleMessage(msg) {
   if (!msg || !msg.t || !me) return
@@ -244,11 +381,11 @@ function handleMessage(msg) {
 
 export const Match = {
   /** idempotent — sets identity, starts presence heartbeats */
-  init({ role, fields, resume }) {
+  init({ role, fields, resume, uid: fixedId }) {
     ensureChannel()
     const nextFields = fields || []
     const same = me && me.role === role && JSON.stringify(me.fields) === JSON.stringify(nextFields)
-    me = same ? me : { id: uid(), role, fields: nextFields, resume: resume || null }
+    me = same ? me : { id: fixedId || uid(), role, fields: nextFields, resume: resume || null }
     if (resume) me.resume = resume
     if (!channel) return this
     announce()
@@ -259,10 +396,19 @@ export const Match = {
 
   /** begin searching for a blind match in `field`; returns false if unsupported */
   startSearch(field) {
-    return startSearch(field)
+    if (!ensureChannel() || !me) return false
+    if (channel?.label === 'supabase') {
+      asyncStartSearch(field) // fire-and-forget; emits 'match' when paired
+      return true
+    }
+    legacyStartSearch(field)
+    return true
   },
 
   cancelSearch,
+
+  /** adopt a match that was made while we were away, if any */
+  checkPendingMatch,
 
   /** active broadcast transport: 'supabase' | 'broadcast' | null */
   channelInfo() {
@@ -312,6 +458,7 @@ export const Match = {
   },
   sendSimAnswer(answer) {
     if (matched) post({ t: 'sim-answer', to: matched.matchId, answer })
+    emit('local-sim-answer', answer) // local mirror for the session transcript
   },
   sendSimClose(simId) {
     if (matched) post({ t: 'sim-close', to: matched.matchId, simId })

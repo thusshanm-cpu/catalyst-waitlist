@@ -1762,6 +1762,43 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 .wl-pos b { color: var(--ember); }
 .wl-success .wl-note { max-width: 44ch; margin-top: 0; }
 
+/* ————— Account modal ————— */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; place-items: center;
+  background: rgba(4, 6, 10, 0.78); backdrop-filter: blur(6px);
+  padding: 20px;
+}
+.auth-card {
+  position: relative;
+  width: 100%; max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.auth-card h3 { font-family: var(--font-display); font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+.auth-card .text-2 { margin-bottom: 16px; }
+.auth-close {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: none;
+  color: var(--text-3); font-size: 20px; cursor: pointer;
+}
+.auth-close:hover { color: var(--text); }
+.auth-tabs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px; margin-bottom: 18px;
+}
+.auth-tabs button {
+  border: none; background: none; cursor: pointer;
+  border-radius: 999px; padding: 7px 0;
+  font-family: var(--font-body); font-size: 13px; font-weight: 500;
+  color: var(--text-2);
+}
+.auth-tabs button.on { background: var(--surface-3); color: var(--text); }
+
 @media (max-width: 640px) {
   .wl-form .form-row { grid-template-columns: 1fr; }
   .wl-seg { grid-template-columns: 1fr; }

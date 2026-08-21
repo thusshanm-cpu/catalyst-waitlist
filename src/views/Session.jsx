@@ -111,7 +111,9 @@ export default function Session() {
     if (wbRemote.current) { wbRemote.current = false; return }
     if (wbSent.current === wbOpen) return
     wbSent.current = wbOpen
+    pushTranscript({ t: 'whiteboard', detail: wbOpen ? 'opened' : 'closed' })
     Match.sendWb(wbOpen)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [real, wbOpen])
 
   const remain = s ? Math.max(0, s.duration - elapsed) : 0
@@ -120,9 +122,27 @@ export default function Session() {
   useEffect(() => {
     if (phase !== 'connecting') return
     if (real) {
-      setMmLog('Secure link established — peer confirmed live')
-      const t = setTimeout(() => setPhase('countdown'), 1500)
-      return () => clearTimeout(t)
+      // async matching: the peer may take a moment to arrive — wait for them
+      let cancelled = false
+      let iv = null
+      let t = null
+      const proceed = () => {
+        setMmLog('Secure link established — peer confirmed live')
+        t = setTimeout(() => setPhase('countdown'), 800)
+      }
+      if (Match.isPeerOnline()) {
+        proceed()
+      } else {
+        setMmLog('Waiting for your match to join…')
+        iv = setInterval(() => {
+          if (cancelled) return
+          if (Match.isPeerOnline()) {
+            clearInterval(iv)
+            proceed()
+          }
+        }, 1500)
+      }
+      return () => { cancelled = true; if (iv) clearInterval(iv); if (t) clearTimeout(t) }
     }
     const logs = [
       `Searching verified startups · ${s.role}…`,
@@ -154,6 +174,7 @@ export default function Session() {
     if (isLive && elapsed >= s.duration && !ended.current) {
       ended.current = true
       if (real) Match.sendEnd()
+      pushTranscript({ t: 'end', detail: 'time up' })
       track('session_ended', { decision: 'time', mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
       api.endSession({ decision: 'time' })
       toast(`Time\u2019s up — ${fmt(s.duration)}. Decision time.`, '⏱️')
@@ -169,20 +190,38 @@ export default function Session() {
     }
   }, [isLive, inIntro, elapsed, activeSim, activeEvent, wbOpen, s.introSecs, s.duration])
 
+  /* session transcript — the real record the AI summary is built from */
+  const transcriptRef = useRef(s?.transcript || [])
+  const pushTranscript = useCallback((entry) => {
+    transcriptRef.current = [...transcriptRef.current, { ...entry, at: Date.now() }].slice(-60)
+    api.updateSession({ transcript: transcriptRef.current })
+  }, [api])
+
+  useEffect(() => {
+    if (!real) return
+    const offs = [
+      Match.on('local-sim-answer', (a) => pushTranscript({ t: 'answer', detail: a.type })),
+      Match.on('remote-sim-answer', (a) => pushTranscript({ t: 'peer_answer', detail: a.type })),
+    ]
+    return () => offs.forEach((o) => o())
+  }, [real, pushTranscript])
+
   const fireEvent = useCallback(() => {
     const unused = EVENTS.filter((e) => !s.events.includes(e.id))
     const pool = unused.length ? unused : EVENTS
     const ev = pool[Math.floor(Math.random() * pool.length)]
     setActiveEvent({ ...ev })
+    pushTranscript({ t: 'curveball', detail: ev.title })
     api.updateSession({ events: [...new Set([...s.events, ev.id])] })
     if (real && !isCandidate) Match.sendEvent({ ...ev })
     if (!real && persp === 'employer') toast('Unexpected change sent to the candidate', '⚡')
-  }, [api, s.events, real, persp, isCandidate, toast])
+  }, [api, s.events, real, persp, isCandidate, pushTranscript, toast])
 
   const launchSim = (id) => {
     const sim = (SIMULATIONS[s.field] || SIMULATIONS.software).find((x) => x.id === id)
     if (!sim) return
     setActiveSim(sim)
+    pushTranscript({ t: 'sim_launched', detail: sim.title })
     if (real && !isCandidate) Match.sendSim(id)
     if (!real && persp === 'candidate') toast('Scenario incoming — good luck', '🎯')
   }
@@ -191,6 +230,7 @@ export default function Session() {
     if (ended.current) return
     ended.current = true
     if (real && !fromRemote) Match.sendEnd()
+    pushTranscript({ t: 'end', detail: 'ended' })
     track('session_ended', { decision: 'ended', mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
     api.endSession({ decision: 'ended' })
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
+import { supabase } from '../supabase.js'
 import { FIELDS, DEMO_PROFILES } from '../data.js'
 import { Zap, FileText, IdCard, Mail, FIELD_ICONS, Spark } from '../components/icons.jsx'
 
@@ -12,7 +13,7 @@ const REVIEW_STEPS = [
 ]
 
 export default function Onboarding() {
-  const { api } = useStore()
+  const { state, api } = useStore()
   const { toast } = useToast()
 
   const [role, setRole] = useState(() => sessionStorage.getItem('catalyst.role') || 'candidate')
@@ -92,7 +93,7 @@ export default function Onboarding() {
   }
 
   const finish = () => {
-    api.completeOnboarding({
+    const profile = {
       role,
       name: form.name,
       email: form.email,
@@ -104,8 +105,31 @@ export default function Onboarding() {
       title: !isCandidate ? form.title : undefined,
       fields: form.fields,
       avatar: form.facePhoto,
-    })
-    toast('Profile approved — welcome to the room', '✓')
+    }
+    if (state.authUser) {
+      // Real account — persist the profile server-side, status pending.
+      // Real biometric verification ships with the KYC vendor (Stripe Identity etc.).
+      supabase
+        .from('profiles')
+        .upsert({
+          id: state.authUser.id,
+          role,
+          name: form.name,
+          email: form.email,
+          school: isCandidate ? form.school : null,
+          program: isCandidate ? form.program : null,
+          fields: form.fields,
+          verification_status: 'pending',
+        })
+        .then(({ error }) => {
+          if (error) console.warn('[profiles] save failed — run supabase/schema.sql:', error.message)
+        })
+      api.completeOnboarding({ ...profile, verificationStatus: 'pending' }, { verified: false })
+      toast('Profile submitted — under human review', '⏳')
+    } else {
+      api.completeOnboarding(profile)
+      toast('Profile approved — welcome to the room', '✓')
+    }
   }
 
   return (

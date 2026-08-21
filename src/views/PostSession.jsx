@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
 import { track } from '../analytics.js'
+import { generateSummary } from '../summary.js'
 import { buildSummary } from '../data.js'
 import { ChatBubble, Calendar, Bookmark, ArrowRight, Spark } from '../components/icons.jsx'
 
@@ -25,6 +26,7 @@ export default function PostSession() {
   const [analyzing, setAnalyzing] = useState(false)
   const [summary, setSummary] = useState(null)
   const [dims, setDims] = useState(null)
+  const [aiSource, setAiSource] = useState('AI ASSISTANT · observations only · no hiring decision')
 
   const summaryData = buildSummary(isEmployer ? 'employer' : 'candidate')
   const real = s?.mode === 'real'
@@ -44,16 +46,28 @@ export default function PostSession() {
     track('decision', { decision: d, mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
   }
 
-  const generate = () => {
+  const generate = async () => {
     setAnalyzing(true)
     setSummary(null)
     setDims(null)
-    setTimeout(() => {
+    const res = await generateSummary({ events: s.transcript || [], role: s.role, field: s.field })
+    if (res.real) {
+      // LLM summary built from the real session transcript
+      setAiSource('AI ASSISTANT · LLM-generated from this session · observations only')
       setAnalyzing(false)
-      setSummary(summaryData)
-      setDims(summaryData.dims.map((d) => ({ ...d, v: 0 })))
-      setTimeout(() => setDims(summaryData.dims), 200)
-    }, 2600)
+      setSummary({ headline: res.headline, strengths: res.strengths, growth: res.growth })
+      setDims(res.dims.map((d) => ({ ...d, v: 0 })))
+      setTimeout(() => setDims(res.dims), 200)
+    } else {
+      // Edge Function not deployed yet — honest demo fallback
+      setAiSource('AI ASSISTANT · demo summary (LLM not wired) · no hiring decision')
+      setTimeout(() => {
+        setAnalyzing(false)
+        setSummary(summaryData)
+        setDims(summaryData.dims.map((d) => ({ ...d, v: 0 })))
+        setTimeout(() => setDims(summaryData.dims), 200)
+      }, 2600)
+    }
   }
 
   useEffect(() => {
@@ -148,7 +162,7 @@ export default function PostSession() {
                 <div className="ai-icon"><Spark size={18} /></div>
                 <div>
                   <h3>Session summary</h3>
-                  <div className="ai-sub">AI ASSISTANT · observations only · no hiring decision</div>
+                  <div className="ai-sub">{aiSource}</div>
                 </div>
                 <div className="ai-note">Generated from the consented recording · 10-min session</div>
               </div>

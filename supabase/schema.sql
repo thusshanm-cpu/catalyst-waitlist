@@ -1,17 +1,83 @@
 -- ————————————————————————————————————————————————————————————
--- Catalyst analytics — one-time setup (run once in Supabase →
--- SQL Editor, ~10 seconds). Creates the `match_events` table the
--- client logs funnel events to. Anonymous clients (the publishable
--- key) may only INSERT — they can never read anyone's data.
+-- Catalyst — one-time setup. Run the whole file once in Supabase →
+-- SQL Editor (~20 seconds). Safe to re-run (idempotent).
+--
+-- Creates:
+--   profiles      — real account profiles (keyed to Supabase Auth users)
+--   search_offers — async matching: a search persists up to 5 minutes
+--   matches       — a made match, picked up by both sides when online
+--   match_events  — funnel analytics (match → call → decision)
 -- ————————————————————————————————————————————————————————————
 
+-- ————— Profiles (real accounts) —————
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  role text,
+  name text,
+  email text,
+  school text,
+  program text,
+  fields text[],
+  verification_status text not null default 'pending', -- pending | approved
+  created_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+-- users manage their own profile only
+create policy "users can manage their own profile"
+  on public.profiles
+  for all
+  to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+-- ————— Async matching —————
+create table if not exists public.search_offers (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null,          -- the searcher's client id (auth uid or device id)
+  role text not null,              -- candidate | employer
+  fields text[] not null default '{}',
+  anon jsonb,                      -- lightweight anon snapshot (no resume PII at offer time)
+  status text not null default 'waiting', -- waiting | claimed | matched | cancelled
+  match_id uuid,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+create table if not exists public.matches (
+  id uuid primary key default gen_random_uuid(),
+  a_id text not null,
+  b_id text not null,
+  a_anon jsonb,
+  b_anon jsonb,
+  field text,
+  status text not null default 'pending', -- pending | active | ended
+  created_at timestamptz not null default now()
+);
+
+-- The matching room is deliberately open (like a public waiting lobby) —
+-- it holds only role/field/anons, and the publishable key is in every
+-- browser. Real auth-gated matching is the production upgrade.
+alter table public.search_offers disable row level security;
+alter table public.matches disable row level security;
+
+-- Realtime: the client watches its own offer row for being claimed.
+alter publication supabase_realtime add table public.search_offers;
+alter publication supabase_realtime add table public.matches;
+
+-- index the common lookup
+create index if not exists search_offers_waiting_idx
+  on public.search_offers (role, status, expires_at);
+
+-- ————— Funnel analytics —————
 create table if not exists public.match_events (
   id       bigint generated always as identity primary key,
   event    text not null,          -- match_started | call_connected | call_failed | peer_left | session_ended | decision
-  role     text,                   -- candidate | employer | founder
-  field    text,                   -- software | marketing | ...
+  role     text,
+  field    text,
   mode     text,                   -- real | demo
-  decision text,                   -- for session_ended / decision rows
+  decision text,
   at       timestamptz not null default now()
 );
 
@@ -24,5 +90,6 @@ create policy "anon can insert match events"
   to anon
   with check (true);
 
--- Optional: a quick look yourself (run in the SQL editor).
+-- ————— Handy queries (run in the SQL editor) —————
 -- select event, count(*) from public.match_events group by 1 order by 2 desc;
+-- select role, field, status, count(*) from public.matches group by 1,2,3;

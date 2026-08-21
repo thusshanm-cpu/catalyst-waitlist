@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
 import { track } from '../analytics.js'
+import { signOutUser } from '../auth.js'
 import { CANDIDATE_QUEUE, CANDIDATES, EMPLOYER_QUEUE, STARTUPS, fieldLabel, SIMULATIONS } from '../data.js'
 import { FIELD_ICONS, SIM_ICONS, Calendar, Compass, Spark } from '../components/icons.jsx'
 
@@ -31,16 +32,24 @@ export default function Dashboard() {
   const [demo, setDemo] = useState(false)
   const [mode, setMode] = useState('demo') // 'demo' | 'real'
   const [searching, setSearching] = useState(null) // field being searched for a live peer
+  const [pending, setPending] = useState(null) // async match held until the peer is online
   const [presence, setPresence] = useState([])
   const [channelLabel, setChannelLabel] = useState(null)
 
   useEffect(() => {
-    Match.init({ role: user?.role, fields: user?.fields, resume: isCandidate ? resumeOf(user) : null })
+    Match.init({ role: user?.role, fields: user?.fields, resume: isCandidate ? resumeOf(user) : null, uid: state.authUser?.id })
     setChannelLabel(Match.channelInfo())
     const off = Match.on('presence', setPresence)
     return () => { off(); Match.cancelSearch() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role, user?.fields, isCandidate])
+
+  /* adopt a match made while we were away (async matching) */
+  useEffect(() => {
+    if (!user) return
+    Match.checkPendingMatch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role])
 
   const mainField = user?.fields?.[0] || 'software'
   const fields = user?.fields?.length ? user.fields : ['software']
@@ -51,6 +60,10 @@ export default function Dashboard() {
       : { id: 'e-' + fid, field: fid, sessionNote: 'Verified candidate · ready now' })
   }
   const queue = fields.map(queueFor).slice(0, 3)
+
+  // refs keep the one-time match listener reading current state
+  const launchRef = useRef(null)
+  const ctxRef = useRef(null)
 
   const launch = (field, roleType, opts = {}) => {
     const anon = opts.anon
@@ -78,41 +91,66 @@ export default function Dashboard() {
       events: [],
       consent: { recording: false, ai: false },
       choices: {},
+      transcript: [],
     })
   }
+  launchRef.current = launch
 
   const start = (field, roleType) => {
     if (mode === 'demo') { launch(field, roleType); return }
-    if (searching) return // already searching — don't stack listeners
+    if (searching || pending) return // already searching — don't stack listeners
 
-    // Real mode: find a live peer on another device, fall back to a simulated match
+    // Live mode: async matching — our search persists, the peer can arrive
+    // any time in the next 5 minutes. No more simulated fallback.
     setSearching(field)
-    const off = Match.on('match', (m) => {
-      off()
-      setSearching(null)
-      launch(m.field || field, roleType, { real: true, anon: m.peer })
-      track('match_started', { role: roleType, field: m.field || field })
-      toast('Live peer matched — secure link established', '🔗')
-    })
+    ctxRef.current = { field, roleType }
     const ok = Match.startSearch(field)
     if (!ok) {
-      off()
+      ctxRef.current = null
       setSearching(null)
       toast('Live matching unsupported here — using a simulated match', '⚠️')
       launch(field, roleType)
       return
     }
-    // Give real users a real window to press start on the other device.
-    // If no one shows up, fall back to a simulated match — clearly labeled.
-    setTimeout(() => {
-      if (Match.matchedInfo()) return
-      off()
-      setSearching(null)
-      Match.cancelSearch()
-      toast('No live peer found in 25s — starting a simulated match instead', '🎭')
-      launch(field, roleType)
-    }, 25000)
   }
+
+  /* one persistent match listener — covers searches, async adoption, and holds */
+  useEffect(() => {
+    const off = Match.on('match', (m) => {
+      const ctx = ctxRef.current
+      ctxRef.current = null
+      setSearching(null)
+      const field = m.field || ctx?.field || 'software'
+      const roleType = ctx?.roleType || 'Intern'
+      if (Match.isPeerOnline()) {
+        launchRef.current(field, roleType, { real: true, anon: m.peer })
+        track('match_started', { role: roleType, field })
+        toast('Live peer matched — secure link established', '🔗')
+      } else {
+        // async match: the peer isn't online yet — start when they arrive
+        setPending({ field, roleType, anon: m.peer })
+        toast('Match found — starting when your peer is here', '🔗')
+      }
+    })
+    return off
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /* a held match starts the moment the peer's presence appears */
+  useEffect(() => {
+    if (!pending) return
+    const iv = setInterval(() => {
+      if (Match.isPeerOnline()) {
+        clearInterval(iv)
+        const p = pending
+        setPending(null)
+        launchRef.current(p.field, p.roleType, { real: true, anon: p.anon })
+        track('match_started', { role: p.roleType, field: p.field })
+        toast('Your peer is here — starting the session', '🔗')
+      }
+    }, 2000)
+    return () => clearInterval(iv)
+  }, [pending, toast])
 
   const histStatus = { saved: { t: 'Saved', c: 'saved' }, followup: { t: 'Follow-up asked', c: 'followup' }, continued: { t: 'Kept talking', c: 'saved' }, time: { t: 'Time up', c: 'saved' }, ended: { t: 'Ended', c: 'skipped' }, skipped: { t: 'Skipped', c: 'skipped' } }
 
@@ -121,13 +159,18 @@ export default function Dashboard() {
       <div className="container">
         <div className="app-bar">
           <div className="brand" onClick={() => api.navigate('landing')}>Catalyst</div>
-          {isCandidate ? <span className="verified-badge">✓ VERIFIED</span> : <span className="verified-badge">✓ VERIFIED COMPANY</span>}
+          {user?.verificationStatus === 'pending'
+            ? <span className="verified-badge" style={{ color: 'var(--amber)', borderColor: 'rgba(210,153,34,.4)' }}>⏳ UNDER REVIEW</span>
+            : isCandidate ? <span className="verified-badge">✓ VERIFIED</span> : <span className="verified-badge">✓ VERIFIED COMPANY</span>}
           <div className="user-chip">
             <span className="text-2" style={{ fontSize: 13 }}>{user?.company || user?.school || 'You'}</span>
             <div className="avatar" style={{ width: 34, height: 34, fontSize: 13 }}>
               {user?.avatar ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : (user?.name || 'Y').split(' ').map((w) => w[0]).join('').slice(0, 2)}
             </div>
           </div>
+          {state.authUser && (
+            <button className="btn btn-ghost btn-sm" onClick={async () => { await signOutUser(); api.reset() }}>Sign out</button>
+          )}
         </div>
 
         <div className="dash-head" style={{ marginTop: 34 }}>
@@ -167,6 +210,21 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* ————— Pending async match ————— */}
+        {pending && (
+          <div className="match-card" style={{ borderColor: 'rgba(141,214,255,.35)' }}>
+            <div className="mc-body">
+              <div className="mc-kicker" style={{ color: 'var(--sky)' }}>Match found</div>
+              <h2>Your match is on the way</h2>
+              <p>
+                A {fieldLabel(pending.field)} match was made for you. Sessions start the moment
+                your peer is online — keep this tab open, it&apos;ll start automatically.
+              </p>
+            </div>
+            <button className="btn btn-ghost" disabled>Waiting for your peer…</button>
+          </div>
+        )}
+
         {/* ————— Match card ————— */}
         <div className="match-card">
           <div className="mc-body">
@@ -187,7 +245,7 @@ export default function Dashboard() {
             </p>
           </div>
           <button className="btn btn-primary btn-lg" disabled={!!searching} onClick={() => start(mainField, 'Intern')}>
-            {searching ? 'Searching for a live peer…' : (isCandidate ? 'Start a 10-minute session' : 'Meet the next candidate')}{!searching && ' →'}
+            {searching ? 'Searching — your match can arrive any time (up to 5 min)…' : (isCandidate ? 'Start a 10-minute session' : 'Meet the next candidate')}{!searching && ' →'}
           </button>
         </div>
 

@@ -3,6 +3,7 @@ import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTran
 import { StoreProvider, useStore } from './store.jsx'
 import { ToastProvider } from './toast.jsx'
 import { isPreview, canDemo } from './preview.js'
+import { getAuthUser, onAuthChange } from './auth.js'
 import Landing from './views/Landing.jsx'
 import Onboarding from './views/Onboarding.jsx'
 import Dashboard from './views/Dashboard.jsx'
@@ -12,7 +13,8 @@ import Profile from './views/Profile.jsx'
 
 function Router() {
   const { state } = useStore()
-  if (!canDemo()) return <Landing /> // public: never past the waitlist
+  // Public visitors without an account never get past the waitlist.
+  if (!canDemo() && !state.authUser) return <Landing />
   switch (state.view) {
     case 'onboarding':
       return <Onboarding />
@@ -60,9 +62,20 @@ function CursorGlow() {
   return <motion.div className="cursor-glow" style={{ x, y, opacity: on ? 1 : 0 }} aria-hidden />
 }
 
+/* hydrate the auth session on load and keep it in sync */
+function AuthSync() {
+  const { api } = useStore()
+  useEffect(() => {
+    getAuthUser().then((u) => api.setAuthUser(u))
+    return onAuthChange((u) => api.setAuthUser(u))
+  }, [api])
+  return null
+}
+
 export default function App() {
   return (
     <StoreProvider>
+      <AuthSync />
       <ToastProvider>
         <ScrollProgress />
         <div className="page-glow" />

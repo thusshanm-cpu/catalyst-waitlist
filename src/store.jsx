@@ -4,7 +4,7 @@ const StoreContext = createContext(null)
 
 const LS_KEY = 'catalyst.state.v1'
 
-const EMPTY = { user: null, view: 'landing', session: null, history: [] }
+const EMPTY = { user: null, view: 'landing', session: null, history: [], authUser: null }
 
 function load() {
   try {
@@ -28,8 +28,9 @@ export function StoreProvider({ children }) {
 
   const api = useMemo(() => {
     const navigate = (view) => setState((s) => ({ ...s, view }))
-    const completeOnboarding = (user) =>
-      setState((s) => ({ ...s, user: { ...user, verified: true }, view: 'dashboard' }))
+    const completeOnboarding = (user, opts = {}) =>
+      setState((s) => ({ ...s, user: { ...user, verified: opts.verified !== false }, view: 'dashboard' }))
+    const setAuthUser = (authUser) => setState((s) => ({ ...s, authUser }))
     const startSession = (session) => setState((s) => ({ ...s, session, view: 'session' }))
     const updateSession = (patch) =>
       setState((s) => (s.session ? { ...s, session: { ...s.session, ...patch } } : s))
@@ -52,7 +53,7 @@ export function StoreProvider({ children }) {
       localStorage.removeItem(LS_KEY)
       setState(EMPTY)
     }
-    return { navigate, completeOnboarding, startSession, updateSession, endSession, newSession, reset }
+    return { navigate, completeOnboarding, setAuthUser, startSession, updateSession, endSession, newSession, reset }
   }, [])
 
   const value = useMemo(() => ({ state, api }), [state, api])
