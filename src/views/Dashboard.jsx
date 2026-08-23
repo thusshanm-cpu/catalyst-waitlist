@@ -185,7 +185,9 @@ export default function Dashboard() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
             <div className="persp-toggle" title="Demo: scripted counterpart · Live: real peer">
               <button className={mode === 'demo' ? 'on' : ''} onClick={() => setMode('demo')}>DEMO MATCH</button>
-              <button className={mode === 'real' ? 'on' : ''} onClick={() => setMode('real')}>LIVE MATCH</button>
+              {import.meta.env.DEV && (
+                <button className={mode === 'real' ? 'on' : ''} onClick={() => setMode('real')}>LIVE MATCH</button>
+              )}
             </div>
             {channelLabel && (
               <span className="text-3" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>
