@@ -41,6 +41,7 @@ create table if not exists public.search_offers (
   fields text[] not null default '{}',
   anon jsonb,                      -- lightweight anon snapshot (no resume PII at offer time)
   status text not null default 'waiting', -- waiting | claimed | matched | cancelled
+  claimed_by text,                 -- who claimed the offer (their auth uid)
   match_id uuid,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null
@@ -57,13 +58,75 @@ create table if not exists public.matches (
   created_at timestamptz not null default now()
 );
 
--- The matching room is deliberately open (like a public waiting lobby) —
--- it holds only role/field/anons, and the publishable key is in every
--- browser. Real auth-gated matching is the production upgrade.
--- NOTE: these must be the LAST word on these tables; the re-affirm at the
--- bottom of this file guards against partial runs that left RLS enabled.
-alter table public.search_offers disable row level security;
-alter table public.matches disable row level security;
+-- idempotent column for pre-existing installs (create table won't add it)
+alter table public.search_offers add column if not exists claimed_by text;
+
+-- ————— Auth-gated matching room —————
+-- Only signed-in users can use async matching. RLS is ON with explicit
+-- policies:
+--   · anyone signed in can read waiting offers and claim them
+--     (claim = update a waiting offer to claimed → matched)
+--   · an owner can read / update / delete their own offers
+--   · a match row is visible only to its two participants
+-- Logged-out demo/preview users fall back to the legacy simultaneous path.
+alter table public.search_offers enable row level security;
+alter table public.matches enable row level security;
+
+-- searchers can see waiting offers; owners and claimers can always see
+-- their own (claimed/matched rows must stay visible to both, because an
+-- UPDATE's new row also has to satisfy the SELECT policies)
+drop policy if exists "read waiting or own offers" on public.search_offers;
+create policy "read waiting or own offers"
+  on public.search_offers
+  for select to authenticated
+  using (status = 'waiting' or owner_id = auth.uid()::text or claimed_by = auth.uid()::text);
+
+-- you can only post an offer for yourself
+drop policy if exists "post own offer" on public.search_offers;
+create policy "post own offer"
+  on public.search_offers
+  for insert to authenticated
+  with check (owner_id = auth.uid()::text and status = 'waiting');
+
+-- claim a waiting offer (status → claimed/matched), or manage your own;
+-- `using` allows updating waiting+claimed rows so the two-step claim works;
+-- the claimer records themselves in claimed_by (also keeps the new row
+-- visible to them under the SELECT policy)
+drop policy if exists "claim or manage own offer" on public.search_offers;
+create policy "claim or manage own offer"
+  on public.search_offers
+  for update to authenticated
+  using (status in ('waiting', 'claimed') or owner_id = auth.uid()::text)
+  with check (owner_id = auth.uid()::text or claimed_by = auth.uid()::text or status in ('claimed', 'matched'));
+
+-- clean up your own offers
+drop policy if exists "delete own offer" on public.search_offers;
+create policy "delete own offer"
+  on public.search_offers
+  for delete to authenticated
+  using (owner_id = auth.uid()::text);
+
+-- a match is private to its two participants
+drop policy if exists "read own matches" on public.matches;
+create policy "read own matches"
+  on public.matches
+  for select to authenticated
+  using (a_id = auth.uid()::text or b_id = auth.uid()::text);
+
+-- you can only create a match you're part of (the claimer is a_id)
+drop policy if exists "create match as participant" on public.matches;
+create policy "create match as participant"
+  on public.matches
+  for insert to authenticated
+  with check (a_id = auth.uid()::text or b_id = auth.uid()::text);
+
+-- participants can update their own matches (pending → active → ended)
+drop policy if exists "update own matches" on public.matches;
+create policy "update own matches"
+  on public.matches
+  for update to authenticated
+  using (a_id = auth.uid()::text or b_id = auth.uid()::text)
+  with check (a_id = auth.uid()::text or b_id = auth.uid()::text);
 
 -- index the common lookup
 create index if not exists search_offers_waiting_idx
@@ -91,11 +154,11 @@ create policy "anon can insert match events"
   with check (true);
 
 -- ————— Convergence guard —————
--- A partial or repeated run can leave the matching room with RLS enabled
--- (breaking async matching inserts). Re-affirm the intended state so a
--- re-run always converges, no matter what ran before.
-alter table public.search_offers disable row level security;
-alter table public.matches disable row level security;
+-- Re-affirm the intended state so a re-run always converges, no matter
+-- what ran before (all policies above are drop-first, so they re-create
+-- cleanly). The matching room is auth-gated: RLS stays ON.
+alter table public.search_offers enable row level security;
+alter table public.matches enable row level security;
 
 -- make sure the tables are in the realtime publication (idempotent via DO)
 do $$

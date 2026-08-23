@@ -240,9 +240,11 @@ async function asyncStartSearch(field) {
 
 async function claimOffer(offer, field) {
   // Optimistic claim — only succeeds while the offer is still waiting.
+  // claimed_by lets the claimer (and only the claimer) see the offer after
+  // it leaves the waiting pool — RLS requires the new row to stay readable.
   const { data, error } = await supabase
     .from('search_offers')
-    .update({ status: 'claimed' })
+    .update({ status: 'claimed', claimed_by: me.id })
     .eq('id', offer.id)
     .eq('status', 'waiting')
     .select()

@@ -48,9 +48,15 @@ email once). Profiles are written to `profiles` when onboarding completes.
 
 ## Notes
 
-- The matching room (`search_offers` / `matches`) is open to anyone with
-  the publishable key — right for a beta, not production. Real auth-gated
-  matching is the upgrade path.
+- The matching room (`search_offers` / `matches`) is **auth-gated**: RLS
+  is on, and only signed-in users can post or claim offers. An offer is
+  visible to searchers while `waiting`, then only to its owner and the
+  claimer (`claimed_by`). A match row is visible only to its two
+  participants. Anonymous/preview users fall back to the legacy
+  simultaneous-match path, which stays local to the browser.
+- The one deliberate tradeoff: `match_events` is insert-only to anon
+  (nobody can read it from the client) and verification is still manual
+  (you flip `profiles.verification_status` to `approved`).
 - Real biometric KYC (government ID + face match) needs a vendor
   (Stripe Identity, Persona, …). `profiles.verification_status` is the
   state machine waiting for it.
