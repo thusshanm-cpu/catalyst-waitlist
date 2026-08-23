@@ -24,7 +24,8 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
--- users manage their own profile only
+-- users manage their own profile only (drop-first so re-runs converge)
+drop policy if exists "users can manage their own profile" on public.profiles;
 create policy "users can manage their own profile"
   on public.profiles
   for all
@@ -59,12 +60,10 @@ create table if not exists public.matches (
 -- The matching room is deliberately open (like a public waiting lobby) —
 -- it holds only role/field/anons, and the publishable key is in every
 -- browser. Real auth-gated matching is the production upgrade.
+-- NOTE: these must be the LAST word on these tables; the re-affirm at the
+-- bottom of this file guards against partial runs that left RLS enabled.
 alter table public.search_offers disable row level security;
 alter table public.matches disable row level security;
-
--- Realtime: the client watches its own offer row for being claimed.
-alter publication supabase_realtime add table public.search_offers;
-alter publication supabase_realtime add table public.matches;
 
 -- index the common lookup
 create index if not exists search_offers_waiting_idx
@@ -84,11 +83,38 @@ create table if not exists public.match_events (
 alter table public.match_events enable row level security;
 
 -- The browser client may write funnel events but never read them.
+drop policy if exists "anon can insert match events" on public.match_events;
 create policy "anon can insert match events"
   on public.match_events
   for insert
   to anon
   with check (true);
+
+-- ————— Convergence guard —————
+-- A partial or repeated run can leave the matching room with RLS enabled
+-- (breaking async matching inserts). Re-affirm the intended state so a
+-- re-run always converges, no matter what ran before.
+alter table public.search_offers disable row level security;
+alter table public.matches disable row level security;
+
+-- make sure the tables are in the realtime publication (idempotent via DO)
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename in ('search_offers', 'matches')
+  ) then
+    alter publication supabase_realtime add table public.search_offers;
+    alter publication supabase_realtime add table public.matches;
+  end if;
+end
+$$;
+
+drop index if exists search_offers_waiting_idx;
+create index if not exists search_offers_waiting_idx
+  on public.search_offers (role, status, expires_at);
 
 -- ————— Handy queries (run in the SQL editor) —————
 -- select event, count(*) from public.match_events group by 1 order by 2 desc;

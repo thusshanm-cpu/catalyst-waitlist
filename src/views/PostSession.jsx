@@ -77,7 +77,7 @@ export default function PostSession() {
   if (!s) return null
 
   return (
-    <div className="shell">
+    <div className="shell post-session">
       <div className="container shell-main" style={{ maxWidth: 900 }}>
         <button className="back-link" onClick={() => api.newSession()}>← Back to dashboard</button>
 

@@ -58,6 +58,21 @@ function emit(event, payload) {
 
 /* ————— transport plumbing ————— */
 
+// Outbound messages are buffered until the Realtime websocket is actually
+// SUBSCRIBED. Calling send() before then makes @supabase/realtime-js silently
+// fall back to a REST POST (with a deprecation warning); we deliberately avoid
+// that by flushing over the websocket, and only use explicit httpSend() if the
+// subscription genuinely fails.
+let subscribed = false
+let useRest = false
+let sendQueue = []
+
+function flushQueue() {
+  const msgs = sendQueue
+  sendQueue = []
+  for (const m of msgs) post(m)
+}
+
 function ensureChannel() {
   if (channel) return true
 
@@ -65,10 +80,28 @@ function ensureChannel() {
   try {
     const rt = supabase.channel(SUPABASE_ROOM, { config: { broadcast: { self: false } } })
     rt.on('broadcast', { event: 'msg' }, ({ payload }) => handleMessage(payload))
-    rt.subscribe((status) => { if (status === 'SUBSCRIBED') emit('channel-open') })
+    rt.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        subscribed = true
+        useRest = false
+        flushQueue()
+        emit('channel-open')
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        // The websocket won't come up — switch to explicit REST delivery
+        // (no warning, unlike the implicit fallback).
+        useRest = true
+        flushQueue()
+      }
+    })
     channel = {
       label: 'supabase',
-      send: (msg) => rt.send({ type: 'broadcast', event: 'msg', payload: msg }),
+      send: (msg) => {
+        if (useRest) {
+          rt.httpSend('msg', msg).catch(() => { /* keep the loop alive */ })
+        } else {
+          rt.send({ type: 'broadcast', event: 'msg', payload: msg })
+        }
+      },
       close: () => { try { supabase.removeChannel(rt) } catch { /* noop */ } },
     }
     return true
@@ -79,6 +112,7 @@ function ensureChannel() {
   if (typeof BroadcastChannel === 'undefined') return false
   const bc = new BroadcastChannel(CH)
   bc.onmessage = (e) => handleMessage(e.data)
+  subscribed = true // synchronous transport, always ready
   channel = {
     label: 'broadcast',
     send: (msg) => bc.postMessage(msg),
@@ -88,7 +122,12 @@ function ensureChannel() {
 }
 
 function post(msg) {
-  channel?.send(msg)
+  if (!channel) return
+  if (subscribed || useRest) channel.send(msg)
+  else {
+    sendQueue.push(msg)
+    if (sendQueue.length > 100) sendQueue.shift() // bound the buffer, drop oldest
+  }
 }
 
 /* ————— identity & presence ————— */
@@ -492,6 +531,9 @@ export const Match = {
     hbTimer = pruneTimer = null
     try { channel?.close() } catch { /* noop */ }
     channel = null
+    subscribed = false
+    useRest = false
+    sendQueue = []
     me = null
     peers.clear()
     matched = null
