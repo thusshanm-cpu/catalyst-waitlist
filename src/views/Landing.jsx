@@ -20,10 +20,12 @@ export default function Landing() {
   const { scrollY } = useScroll()
   const mockY = useTransform(scrollY, [0, 900], [0, 81])
 
-  /* real accounts: sign up/sign in first, then onboard. Demo: straight in. */
+  /* real accounts: sign up/sign in first, then onboard (dev only).
+     Production has no accounts — demo entries go straight in. */
   const [authModal, setAuthModal] = useState(false)
   const go = (role) => {
     if (state.authUser) api.navigate('onboarding')
+    else if (!import.meta.env.DEV) instant(role) /* production: demo only, no sign-up */
     else setAuthModal(true) /* role picked on the onboarding step 1 */
   }
   const onAuthed = () => {
@@ -67,10 +69,14 @@ export default function Landing() {
           </div>
           <div className="nav-actions">
             {demo ? (
+              /* anyone who joined (or judges in dev) gets the demo entry */
               <>
                 <button className="btn btn-ghost btn-sm" onClick={() => go('employer')}>I&apos;m a startup</button>
                 <button className="btn btn-primary btn-sm" onClick={() => go('candidate')}>I&apos;m a student</button>
               </>
+            ) : !import.meta.env.DEV ? (
+              /* production before joining: waitlist only, no sign-in */
+              <a href="#waitlist" className="btn btn-primary btn-sm">Join the waitlist</a>
             ) : (
               <>
                 <button className="btn btn-ghost btn-sm" onClick={() => setAuthModal(true)}>Sign in</button>

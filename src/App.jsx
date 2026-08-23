@@ -13,8 +13,10 @@ import Profile from './views/Profile.jsx'
 
 function Router() {
   const { state } = useStore()
-  // Public visitors without an account never get past the waitlist.
-  if (!canDemo() && !state.authUser) return <Landing />
+  // Production unlocks the app only for people who joined the waitlist
+  // (canDemo). Real accounts and ?preview=1 are dev-only, so a stale auth
+  // session never opens the working site on the deployed page.
+  if (!canDemo() && !(import.meta.env.DEV && state.authUser)) return <Landing />
   switch (state.view) {
     case 'onboarding':
       return <Onboarding />

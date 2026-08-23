@@ -1,10 +1,12 @@
 // ————— Access gate —————
-// Public visitors see only the landing page + waitlist. Two things unlock
-// the demo flows:
-//   • `?preview=1`  — judge/dev mode, reveals everything.
-//   • a waitlist signup — "you're in, try the demo" (stored per device).
-// Anything else forces the landing page.
+// The deployed (production) waitlist unlocks ONE thing: the demo, for
+// people who joined the waitlist (`catalyst.joined` on their device).
+// Nothing else leads to the working site on production:
+//   • `?preview=1`  — dev only (judge mode, reveals everything).
+//   • sign-in/real accounts — dev only.
+// Everything below only returns true in dev, except isJoined/markJoined
 export const isPreview = () =>
+  import.meta.env.DEV &&
   typeof window !== 'undefined' &&
   new URLSearchParams(window.location.search).get('preview') === '1'
 
@@ -15,7 +17,7 @@ export const markJoined = () => {
   try {
     localStorage.setItem(JOINED_KEY, '1')
   } catch {
-    /* private mode — the ?preview=1 path still works */
+    /* private mode */
   }
 }
 
@@ -27,5 +29,5 @@ export const isJoined = () => {
   }
 }
 
-/** demo flows are available to judges and to people who joined */
+/** demo flows are available to judges (?preview=1, dev) and to people who joined */
 export const canDemo = () => isPreview() || isJoined()
