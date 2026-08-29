@@ -160,7 +160,7 @@ export default function Dashboard() {
         <div className="app-bar">
           <div className="brand" onClick={() => api.navigate('landing')}>Catalyst</div>
           {user?.verificationStatus === 'pending'
-            ? <span className="verified-badge" style={{ color: 'var(--amber)', borderColor: 'rgba(210,153,34,.4)' }}>⏳ UNDER REVIEW</span>
+            ? <span className="verified-badge" style={{ color: 'var(--amber)', borderColor: 'rgba(217,164,65,.4)' }}>⏳ UNDER REVIEW</span>
             : isCandidate ? <span className="verified-badge">✓ VERIFIED</span> : <span className="verified-badge">✓ VERIFIED COMPANY</span>}
           <div className="user-chip">
             <span className="text-2" style={{ fontSize: 13 }}>{user?.company || user?.school || 'You'}</span>
@@ -204,7 +204,7 @@ export default function Dashboard() {
         {presence.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
             {presence.map((p) => (
-              <span key={p.role + p.field} className="sim-tag" style={{ color: 'var(--ember-soft)', borderColor: 'rgba(95,237,131,.4)', background: 'rgba(95,237,131,.06)' }}>
+              <span key={p.role + p.field} className="sim-tag" style={{ color: 'var(--mint)', borderColor: 'rgba(99,214,138,.4)', background: 'rgba(99,214,138,.06)' }}>
                 <span className="live-dot" style={{ display: 'inline-block', marginRight: 6, width: 7, height: 7 }} />
                 {p.count} verified {p.role === 'candidate' ? 'student' : 'startup'} live in {fieldLabel(p.field)}
               </span>
@@ -214,7 +214,7 @@ export default function Dashboard() {
 
         {/* ————— Pending async match ————— */}
         {pending && (
-          <div className="match-card" style={{ borderColor: 'rgba(141,214,255,.35)' }}>
+          <div className="match-card" style={{ borderColor: 'rgba(255,255,255,.3)' }}>
             <div className="mc-body">
               <div className="mc-kicker" style={{ color: 'var(--sky)' }}>Match found</div>
               <h2>Your match is on the way</h2>

@@ -994,7 +994,7 @@ function Whiteboard({ relay = false }) {
       <div className="wb-toolbar">
         <span className="mono" style={{ fontSize: 11, letterSpacing: '0.14em', color: 'var(--text-3)', textTransform: 'uppercase' }}>Shared whiteboard</span>
         <div style={{ flex: 1 }} />
-        {['#5fed83', '#8dd6ff', '#8c93fb', '#d29922', '#ffffff'].map((c) => (
+        {['#ffffff', '#cccccc', '#9a9a9a', '#d9a441', '#f2f2f2'].map((c) => (
           <button key={c} className={`wb-tool ${color === c && tool !== 'eraser' ? 'on' : ''}`}
             onClick={() => { setColor(c); setTool('pen') }}
             style={{ background: c, borderColor: color === c ? 'var(--text)' : 'var(--line)', borderRadius: '50%', width: 26, height: 26 }} />
@@ -1013,7 +1013,7 @@ function Whiteboard({ relay = false }) {
           onPointerLeave={up}
         />
         {(peerDrawing || teammateTimer) && (
-          <div style={{ position: 'absolute', left: 14, bottom: 14, fontFamily: 'var(--font-mono)', fontSize: 11, color: peerDrawing ? 'rgba(63,185,80,.85)' : 'rgba(95,237,131,.85)' }}>
+          <div style={{ position: 'absolute', left: 14, bottom: 14, fontFamily: 'var(--font-mono)', fontSize: 11, color: peerDrawing ? 'rgba(255,255,255,.85)' : 'rgba(217,164,65,.85)' }}>
             {peerDrawing ? 'peer is drawing…' : 'teammate is sketching an alternative…'}
           </div>
         )}

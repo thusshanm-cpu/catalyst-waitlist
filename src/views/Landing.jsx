@@ -53,10 +53,10 @@ export default function Landing() {
         <div className="container nav-inner">
           <div className="brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <svg className="brand-mark" viewBox="0 0 32 32">
-              <rect width="32" height="32" rx="9" fill="none" stroke="rgba(255,255,255,.25)" />
-              <circle cx="14" cy="16" r="5" fill="#6d7cff" />
-              <circle cx="22" cy="10" r="3" fill="#8dd6ff" />
-              <circle cx="22" cy="22" r="3" fill="#8c93fb" />
+              <rect width="32" height="32" rx="10" fill="none" stroke="rgba(255,255,255,.28)" />
+              <circle cx="14" cy="16" r="5" fill="#ffffff" />
+              <circle cx="22" cy="10" r="3" fill="rgba(255,255,255,.75)" />
+              <circle cx="22" cy="22" r="3" fill="rgba(255,255,255,.75)" />
             </svg>
             Catalyst
           </div>
@@ -91,7 +91,13 @@ export default function Landing() {
       <header className="hero">
         <div className="container hero-grid">
           <div className="hero-copy">
-            <Reveal><span className="eyebrow">Live talent discovery</span></Reveal>
+            <Reveal>
+              <span className="badge-chip">
+                <span className="badge-new">New</span>
+                <svg className="spark" width="13" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z"/></svg>
+                Live talent discovery
+              </span>
+            </Reveal>
             <Reveal delay={90}>
               <h1 className="display display-xl">
                 <span className="hero-line"><motion.span className="hero-line-in" initial={reduce ? false : { y: '112%' }} animate={{ y: 0 }} transition={{ delay: 0.12, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}>The resume is the</motion.span></span>
@@ -683,14 +689,14 @@ function CollabMock() {
       </div>
       <div style={{ height: 260, background: '#000000', position: 'relative' }}>
         <svg viewBox="0 0 400 260" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-          <line x1="60" y1="200" x2="220" y2="120" stroke="rgba(109,124,255,.7)" strokeWidth="3" strokeLinecap="round" />
-          <line x1="220" y1="120" x2="330" y2="160" stroke="rgba(210,153,34,.8)" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 5" />
-          <rect x="150" y="150" width="70" height="50" fill="none" stroke="rgba(109,124,255,.6)" strokeWidth="2" />
-          <circle cx="330" cy="160" r="6" fill="rgba(210,153,34,.9)" />
+          <line x1="60" y1="200" x2="220" y2="120" stroke="rgba(255,255,255,.75)" strokeWidth="3" strokeLinecap="round" />
+          <line x1="220" y1="120" x2="330" y2="160" stroke="rgba(217,164,65,.75)" strokeWidth="3" strokeLinecap="round" strokeDasharray="6 5" />
+          <rect x="150" y="150" width="70" height="50" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="2" />
+          <circle cx="330" cy="160" r="6" fill="rgba(217,164,65,.85)" />
           <text x="30" y="40" fill="rgba(255,255,255,.45)" fontSize="12" fontFamily="IBM Plex Mono, monospace">retention flow — sketch</text>
           <text x="60" y="212" fill="rgba(255,255,255,.35)" fontSize="11" fontFamily="IBM Plex Mono, monospace">drop-off here?</text>
         </svg>
-        <div style={{ position: 'absolute', left: 14, bottom: 12, fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'rgba(255,255,255,.5)' }}>teammate is drawing…</div>
+        <div style={{ position: 'absolute', left: 14, bottom: 12, fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'rgba(255,255,255,.55)' }}>teammate is drawing…</div>
       </div>
     </div>
   )
