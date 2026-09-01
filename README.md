@@ -9,7 +9,7 @@ A fully client-side React + Vite prototype. No backend, no API keys, no accounts
 
 ## Live demo
 
-**https://thusshanm-cpu.github.io/catalyst-waitlist/** — the waitlist build, deployed automatically
+**https://thusshanm-cpu.github.io/catalyst/** — the waitlist build, deployed automatically
 from `main` on every push via GitHub Actions. This is a separate repo from the hackathon
 submission (`thusshanm-cpu/catalyst`), so the submitted site stays untouched.
 
