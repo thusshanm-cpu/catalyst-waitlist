@@ -19,6 +19,11 @@ It creates (idempotently):
 | `search_offers` | async matching — searches persist up to 5 minutes |
 | `matches` | a made match, picked up by both sides when online |
 | `match_events` | funnel analytics (match → call → decision) |
+| `function_usage` | rate-limit counter for the `session-summary` edge fn |
+
+Safe to re-run: every statement is idempotent (drop-first where it
+matters), so pulling the latest `schema.sql` after this hardening change
+and running it again just converges.
 
 Until this runs, live matching silently falls back to the old
 same-device BroadcastChannel path and analytics no-ops.
@@ -34,6 +39,7 @@ supabase secrets set LLM_API_KEY=sk-...            # your LLM provider key
 # optional:
 # supabase secrets set LLM_MODEL=gpt-4o-mini
 # supabase secrets set LLM_BASE=https://api.openai.com/v1
+# supabase secrets set LLM_DAILY_CAP=5000          # global per-day request cap
 ```
 
 Works with any OpenAI-style chat API (OpenAI, OpenRouter, LocalAI, …).
@@ -54,9 +60,15 @@ email once). Profiles are written to `profiles` when onboarding completes.
   claimer (`claimed_by`). A match row is visible only to its two
   participants. Anonymous/preview users fall back to the legacy
   simultaneous-match path, which stays local to the browser.
-- The one deliberate tradeoff: `match_events` is insert-only to anon
-  (nobody can read it from the client) and verification is still manual
+- `match_events` is write-only from the client (nobody can read it) and
+  inserts are restricted to **authenticated** users — anonymous visitors
+  can't spam junk rows into the funnel. Verification is still manual
   (you flip `profiles.verification_status` to `approved`).
+- `session-summary` is deliberately open to the joined demo (no JWT), so
+  it rate-limits itself: per-IP window (20 req / 10 min) plus a global
+  daily cap (`LLM_DAILY_CAP`, default 5,000), tracked in `function_usage`
+  via the service-role key. Oversized payloads are rejected before they
+  reach the LLM.
 - Real biometric KYC (government ID + face match) needs a vendor
   (Stripe Identity, Persona, …). `profiles.verification_status` is the
   state machine waiting for it.

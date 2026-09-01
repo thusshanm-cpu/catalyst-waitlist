@@ -51,6 +51,9 @@ export async function joinWaitlist(entry) {
       // Form backends accept cross-origin browser posts and expect a
       // url-encoded body, not JSON. Flatten the fields array to one string.
       const body = new URLSearchParams()
+      // Formspree honeypot: bots that auto-fill hidden fields trip this.
+      // Real users never see it; the field is sent empty so humans pass.
+      body.set('_gotcha', '')
       body.set('email', record.email)
       if (record.name) body.set('name', record.name)
       body.set('role', record.role)

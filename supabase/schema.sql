@@ -7,6 +7,7 @@
 --   search_offers — async matching: a search persists up to 5 minutes
 --   matches       — a made match, picked up by both sides when online
 --   match_events  — funnel analytics (match → call → decision)
+--   function_usage — rate-limit counter for the session-summary edge fn
 -- ————————————————————————————————————————————————————————————
 
 -- ————— Profiles (real accounts) —————
@@ -145,13 +146,46 @@ create table if not exists public.match_events (
 
 alter table public.match_events enable row level security;
 
--- The browser client may write funnel events but never read them.
+-- Only signed-in users may write funnel events (never read them). This
+-- closes the anon spam hole: anonymous visitors (the public waitlist demo)
+-- can no longer inject junk rows. Real funnel data comes from real accounts,
+-- which send events from authenticated sessions.
 drop policy if exists "anon can insert match events" on public.match_events;
-create policy "anon can insert match events"
+drop policy if exists "authenticated can insert match events" on public.match_events;
+create policy "authenticated can insert match events"
   on public.match_events
   for insert
-  to anon
+  to authenticated
   with check (true);
+
+-- Hygiene: only known event names, and nothing oversized.
+alter table public.match_events drop constraint if exists match_events_event_whitelist;
+alter table public.match_events add constraint match_events_event_whitelist
+  check (event in ('match_started','call_connected','call_failed','peer_left','session_ended','decision'));
+alter table public.match_events drop constraint if exists match_events_len;
+alter table public.match_events add constraint match_events_len
+  check (length(event) <= 48
+     and length(coalesce(role,''))   <= 32
+     and length(coalesce(field,''))  <= 64
+     and length(coalesce(mode,''))   <= 16
+     and length(coalesce(decision,'')) <= 256);
+
+-- ————— Edge-function rate limiting —————
+-- `session-summary` writes one row per call (via its service-role key) so it
+-- can enforce a per-IP window limit + global daily cap. RLS is ON with NO
+-- policies: external clients (anon or authenticated) get permission denied;
+-- only the edge function's service role can touch this table.
+create table if not exists public.function_usage (
+  id        bigint generated always as identity primary key,
+  ip        text not null,
+  tag       text not null default 'session-summary',
+  called_at timestamptz not null default now()
+);
+
+alter table public.function_usage enable row level security;
+
+create index if not exists function_usage_ip_idx on public.function_usage (ip, called_at);
+create index if not exists function_usage_at_idx on public.function_usage (called_at);
 
 -- ————— Convergence guard —————
 -- Re-affirm the intended state so a re-run always converges, no matter
