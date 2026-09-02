@@ -161,7 +161,7 @@ export default function Onboarding() {
           <p className="muted" style={{ marginBottom: 30, fontSize: 14.5 }}>
             {step === 1 && 'Every account is manually reviewed. This keeps the room free of fakes.'}
             {step === 2 && (isCandidate ? 'What employers will see after you\u2019re matched.' : 'Proof that this is a real, hiring company.')}
-            {step === 3 && 'Identity, face, and contact — the three layers every member passes.'}
+            {step === 3 && 'Identity and contact — checked by a human before you enter a room.'}
             {step === 4 && (isCandidate ? 'You\u2019ll only ever be matched with startups hiring in these fields.' : 'You\u2019ll only meet candidates verified for these roles.')}
             {step === 5 && 'Our team reviews every profile. This takes about a minute.'}
           </p>
@@ -192,7 +192,7 @@ export default function Onboarding() {
                 </div>
                 <div className="form-item">
                   <label>Email</label>
-                  <input className="input" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="you@school.edu" />
+                  <input className="input" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder={isCandidate ? 'you@school.edu' : 'you@yourstartup.com'} />
                 </div>
               </div>
               {isCandidate ? (

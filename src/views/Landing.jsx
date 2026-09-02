@@ -159,7 +159,7 @@ export default function Landing() {
           </div>
           <div className="index-list">
             {[
-              ['01', 'Verify', 'Every account is reviewed by a human — government ID, face match, education, and a real company behind every employer.'],
+              ['01', 'Verify', 'Every account is reviewed by a human — identity, education, and a real company behind every employer. Automated ID verification takes over at launch.'],
               ['02', 'Match blind', 'You pick your field, we pick the room. You know the role — never the company. No name bias in the first round.'],
               ['03', 'Interview live', 'A ten-minute video session. The employer sets the scene, then it\u2019s unscripted — including on-the-spot startup simulations.'],
               ['04', 'Resume at match', 'The moment you match, the startup receives your verified resume — then evaluates how you think, live, before unlocking your full profile.'],
@@ -255,7 +255,7 @@ export default function Landing() {
               </div>
               <div className="safety-grid">
                 {[
-                  [<Shield size={18} key="i" />, 'Verified founders', 'Every founder is ID-checked before they enter a room.'],
+                  [<Shield size={18} key="i" />, 'Verified founders', 'Every founder is human-reviewed before they enter a room.'],
                   [<Handshake size={18} key="i" />, 'Work, not coffee', 'A ten-minute working session shows if you can actually build together.'],
                   [<Target size={18} key="i" />, 'Matched on the gap', 'Technical, design, growth — matched to what your team is missing.'],
                   [<Building size={18} key="i" />, 'Ready to start', 'Founders ready to commit, not people window-shopping.'],
@@ -278,13 +278,13 @@ export default function Landing() {
           <Reveal className="band">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 44, alignItems: 'center' }}>
               <div>
-                <h3>Verified in, verified out.</h3>
-                <p>A hiring room only works if every person in it is real. Catalyst layers verification at every step.</p>
+                <h3>Every room is real. Every claim is checkable.</h3>
+                <p>Every account is reviewed by a human before it joins a room. Automated KYC takes over as we scale.</p>
               </div>
               <div className="safety-grid">
                 {[
-                  [<Fingerprint size={18} key="i" />, 'Government ID + facial match', 'Identity is checked against a live face scan, not a selfie upload.'],
-                  [<Shield size={18} key="i" />, 'Manual review on every account', 'A human reviews each candidate and each company before approval.'],
+                  [<Shield size={18} key="i" />, 'Human review, today', 'A person checks every identity and every company before approval.'],
+                  [<Fingerprint size={18} key="i" />, 'Vendor ID checks at launch', 'Government-ID and face checks run through a third-party provider — we never store biometrics.'],
                   [<Building size={18} key="i" />, 'Employer authorization', 'Startups prove they exist and that the recruiter can actually hire.'],
                   [<Warning size={18} key="i" />, 'Moderation & reporting', 'Impersonation, harassment, or misconduct ends in suspension — fast.'],
                 ].map(([icon, t, b], i) => (
@@ -398,7 +398,7 @@ function AuthModal({ onClose, onDone }) {
         ) : (
           <>
             <h3>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h3>
-            <p className="text-2">{mode === 'signup' ? 'Real accounts, real verification — takes about a minute.' : 'Sign in to continue your sessions.'}</p>
+            <p className="text-2">{mode === 'signup' ? 'Real accounts, human-reviewed — takes about a minute.' : 'Sign in to continue your sessions.'}</p>
             <div className="auth-tabs">
               <button className={mode === 'signup' ? 'on' : ''} onClick={() => setMode('signup')}>Sign up</button>
               <button className={mode === 'signin' ? 'on' : ''} onClick={() => setMode('signin')}>Sign in</button>

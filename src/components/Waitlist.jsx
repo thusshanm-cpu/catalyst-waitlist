@@ -24,6 +24,12 @@ const ROLE_COPY = {
   },
 }
 
+const EMAIL_PLACEHOLDERS = {
+  candidate: 'you@school.edu',
+  employer: 'you@yourstartup.com',
+  founder: 'you@yourstartup.com',
+}
+
 const ROLE_ICONS = {
   candidate: GraduationCap,
   employer: Building,
@@ -115,7 +121,7 @@ export default function Waitlist({ initialRole = 'candidate' }) {
               id="wl-email"
               className="input"
               type="email"
-              placeholder="you@school.edu"
+              placeholder={EMAIL_PLACEHOLDERS[role]}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"

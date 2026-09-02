@@ -4,14 +4,16 @@
 > ten-minute video interviews and on-the-spot startup simulations — so employers evaluate how
 > someone thinks, communicates, and adapts *before* they read a resume.
 
-A fully client-side React + Vite prototype. No backend, no API keys, no accounts — every flow
-(verification, matchmaking, sessions, simulations, AI summaries) runs in the browser.
+A React + Vite app with a real backend: Supabase Postgres (with Row-Level Security on every
+table), Supabase Auth and Realtime for cross-device matching, and a rate-limited LLM edge
+function for session summaries. The public waitlist build ships as a static site — accounts,
+matching, and sessions behind the waitlist are live, not simulated.
 
 ## Live demo
 
 **https://thusshanm-cpu.github.io/catalyst/** — the waitlist build, deployed automatically
-from `main` on every push via GitHub Actions. This is a separate repo from the hackathon
-submission (`thusshanm-cpu/catalyst`), so the submitted site stays untouched.
+from `main` on every push via GitHub Actions. The hackathon submission lives in a separate
+repo (`thusshanm-cpu/catalyst-hackathon`) and is untouched by this project.
 
 ## For judges — 60-second walkthrough
 
@@ -59,8 +61,9 @@ interview. Catalyst flips the pipeline: **potential is evaluated before credenti
   together, stroke by stroke, live.
 - **Resume at match** — the candidate's verified resume arrives the moment they match; the
   employer's full profile unlock (portfolio, GitHub, credentials) still comes after the session.
-- **Verification-first** — webcam face capture, ID upload, and an email code gate every account;
-  profiles are manually reviewed before approval.
+- **Verification-first** — every account is human-reviewed before approval. Today that means
+  identity, education, and company checks; at launch, government-ID and face checks move to a
+  third-party KYC provider (see Compliance & verification below).
 - **AI-assisted summaries** — with consent, sessions generate structured interview summaries
   (communication, adaptability, confidence, problem-solving) that support — never replace — human
   judgment.
@@ -94,7 +97,7 @@ Get into the product in under a minute, no typing required:
 | Post-session | Continue / follow-up / save / skip, then a consent-gated **AI summary** with animated scores |
 | Resume at match | The candidate's verified resume arrives with the match; the full profile unlocks after the session |
 
-## Live matchmaking (two tabs, no backend)
+## Live matchmaking (cross-tab, no server)
 
 Matchmaking genuinely works between two browser tabs on the same machine via `BroadcastChannel` —
 no server required — and it stays blind: neither side ever sees the other's name or company.
@@ -124,6 +127,24 @@ export const WAITLIST_ENDPOINT = 'https://formspree.io/f/your-form-id'
 Submissions POST as form data (`email`, `name`, `role`, `fields`, `at`) — Formspree, Getform, or any
 serverless function works.
 
+## Compliance & verification stance
+
+Verification is staged, and the promise on the landing page matches reality at each stage:
+
+- **Today (beta)** — every account is reviewed by a human: identity, education, and proof that
+  the company behind an employer is real. No biometric capture, no ID document collection yet,
+  so PII exposure is minimal while volume is low.
+- **At launch** — government-ID and live-face checks run through a **third-party KYC provider**
+  (e.g. Stripe Identity / Persona). Catalyst never stores biometric or document data; the vendor
+  holds it and returns only a verified/unverified verdict. This keeps us out of the business of
+  holding sensitive PII.
+- **At scale** — humans move to handling *flagged* accounts only; accounts that clear vendor KYC
+  and a trust score are approved automatically, so review cost stays flat as volume grows.
+
+Security controls in place today: RLS on all user tables (per-owner policies), a rate-limited
+and daily-capped LLM edge function (per-IP limit + global cap tracked in Postgres), and
+authenticated-only analytics events.
+
 ## Run it locally
 
 ```bash
@@ -133,8 +154,8 @@ npm run dev   # → http://localhost:5173
 
 ## Stack & honesty note
 
-React 18 + Vite 6, entirely client-side. **Real:** the UI, webcam capture, whiteboard canvas,
-cross-tab matching and relay, form validation, timers, and consent gating. **Simulated for the
-prototype:** the interview counterpart (scripted peers), the AI summary, verification (files are
-not inspected; the email code is a fixed demo code), and persistence (localStorage, per device).
-Waitlist signups are localStorage-only until `WAITLIST_ENDPOINT` is set (see **Waitlist** above).
+React 18 + Vite 6. **Real in the shipped build:** the waitlist (Formspree), Supabase accounts,
+cross-device matching via Realtime, live sessions, the whiteboard, simulations, and consent-gated
+AI summaries (server-side, rate-limited). **For the public demo:** verification is human-review-plus-email
+rather than full KYC (see Compliance & verification), and the demo counterpart in a session is a
+scripted peer. Waitlist signups go straight to Formspree (`WAITLIST_ENDPOINT` in `src/waitlist.js`).
