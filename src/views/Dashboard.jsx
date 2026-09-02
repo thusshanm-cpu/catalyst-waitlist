@@ -214,7 +214,7 @@ export default function Dashboard() {
 
         {/* ————— Pending async match ————— */}
         {pending && (
-          <div className="match-card" style={{ borderColor: 'rgba(255,255,255,.3)' }}>
+          <div className="match-card" style={{ borderColor: 'rgba(232,163,61,.35)' }}>
             <div className="mc-body">
               <div className="mc-kicker" style={{ color: 'var(--sky)' }}>Match found</div>
               <h2>Your match is on the way</h2>

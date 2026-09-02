@@ -844,7 +844,7 @@ function Whiteboard({ relay = false }) {
   const remoteLive = useRef(null) // in-progress stroke from the peer
   const recentStrokes = useRef([]) // last N strokes, for re-sync when the peer's board opens
   const peerDrawTimer = useRef(null)
-  const [color, setColor] = useState('#ffffff')
+  const [color, setColor] = useState('#efe8d8')
   const [tool, setTool] = useState('pen')
   const [teammateTimer, setTeammateTimer] = useState(false)
   const [peerDrawing, setPeerDrawing] = useState(false)
@@ -945,7 +945,7 @@ function Whiteboard({ relay = false }) {
       const ctx = ctxRef.current
       if (!c || !ctx) return
       const stroke = {
-        id: strokeId(), color: '#cccccc', tool: 'pen', width: 3,
+        id: strokeId(), color: '#c4bba9', tool: 'pen', width: 3,
         pts: Array.from({ length: 22 }, (_, i) => ({
           x: 60 + i * 9 + Math.random() * 6,
           y: 40 + Math.sin(i / 3) * 26 + Math.random() * 10,
@@ -994,7 +994,7 @@ function Whiteboard({ relay = false }) {
       <div className="wb-toolbar">
         <span className="mono" style={{ fontSize: 11, letterSpacing: '0.14em', color: 'var(--text-3)', textTransform: 'uppercase' }}>Shared whiteboard</span>
         <div style={{ flex: 1 }} />
-        {['#ffffff', '#cccccc', '#9a9a9a', '#d9a441', '#f2f2f2'].map((c) => (
+        {['#efe8d8', '#c4bba9', '#8a8272', '#e8a33d', '#9db66e'].map((c) => (
           <button key={c} className={`wb-tool ${color === c && tool !== 'eraser' ? 'on' : ''}`}
             onClick={() => { setColor(c); setTool('pen') }}
             style={{ background: c, borderColor: color === c ? 'var(--text)' : 'var(--line)', borderRadius: '50%', width: 26, height: 26 }} />
@@ -1013,7 +1013,7 @@ function Whiteboard({ relay = false }) {
           onPointerLeave={up}
         />
         {(peerDrawing || teammateTimer) && (
-          <div style={{ position: 'absolute', left: 14, bottom: 14, fontFamily: 'var(--font-mono)', fontSize: 11, color: peerDrawing ? 'rgba(255,255,255,.85)' : 'rgba(217,164,65,.85)' }}>
+          <div style={{ position: 'absolute', left: 14, bottom: 14, fontFamily: 'var(--font-mono)', fontSize: 11, color: peerDrawing ? 'rgba(224,93,74,.9)' : 'rgba(232,163,61,.85)' }}>
             {peerDrawing ? 'peer is drawing…' : 'teammate is sketching an alternative…'}
           </div>
         )}
