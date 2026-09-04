@@ -1971,3 +1971,45 @@ input, select, textarea { font-family: inherit; color: var(--text); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border: 2px solid var(--bg); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ————— Booked calls (appointments) ————— */
+.dash-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 20px 0 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.dash-tabs button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 9px 16px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.16s, background 0.16s, border-color 0.16s;
+}
+.dash-tabs button:hover { color: var(--text); }
+.dash-tabs button.on {
+  color: var(--text);
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.appt-panel { padding-top: 26px; }
+.appt-panel .dash-head { margin-bottom: 22px; }
+.appt-h { font-family: var(--font-display); font-size: 15px; font-weight: 600; margin: 0 0 12px; }
+.appt-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; align-items: start; }
+.appt-list { display: grid; gap: 10px; }
+.appt-slot { cursor: default; }
+.appt-slot .q-title { font-size: 14px; }
+.appt-slot .btn { flex-shrink: 0; }
+.appt-hint { font-size: 12px; color: var(--text-3); margin-top: 10px; line-height: 1.5; }
+@media (max-width: 900px) {
+  .appt-grid { grid-template-columns: 1fr; }
+}

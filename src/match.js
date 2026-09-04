@@ -451,6 +451,21 @@ export const Match = {
   /** adopt a match that was made while we were away, if any */
   checkPendingMatch,
 
+  /** adopt a booked appointment as the active room — no search, no emit.
+   *  Both sides already know the same appointment id, so the whole relay
+   *  (presence, whiteboard, simulations, WebRTC) routes on it exactly like
+   *  a matched session. */
+  joinAppointment({ matchId, peerAnon, field }) {
+    cancelSearch()
+    matched = { matchId, peer: peerAnon, field, startAt: Date.now() }
+    return this
+  },
+
+  /** this device's relay id (auth uid when signed in, else per-tab) */
+  meId() {
+    return me?.id || null
+  },
+
   /** active broadcast transport: 'supabase' | 'broadcast' | null */
   channelInfo() {
     return channel?.label || null

@@ -4,6 +4,7 @@ import { useToast } from '../toast.jsx'
 import { Match } from '../match.js'
 import { useCall } from '../call.js'
 import { track } from '../analytics.js'
+import * as Appt from '../appointments.js'
 import { SIMULATIONS, EVENTS, fieldLabel } from '../data.js'
 import { Mic, Pencil, Eraser, Trash, Zap, FileText, X, Spark, SIM_ICONS } from '../components/icons.jsx'
 
@@ -39,7 +40,8 @@ export default function Session() {
   const wbRemote = useRef(false)
   const wbSent = useRef(false) // matches the initial wbOpen state
 
-  const real = s?.mode === 'real'
+  const real = s?.mode === 'real' || (s?.mode === 'appt' && import.meta.env.DEV)
+  const isAppt = s?.mode === 'appt'
   const persp = real ? (s?.perspective || 'candidate') : perspective
   const isCandidate = persp === 'candidate'
   const isLive = phase === 'live'
@@ -144,11 +146,17 @@ export default function Session() {
       }
       return () => { cancelled = true; if (iv) clearInterval(iv); if (t) clearTimeout(t) }
     }
-    const logs = [
-      `Searching verified startups · ${s.role}…`,
-      '3 matches found · narrowing by field…',
-      `Matched · they know the role — not you.`,
-    ]
+    const logs = isAppt
+      ? [
+          `Opening your booked call · ${s.role}…`,
+          'Secure link being negotiated…',
+          'The room is ready — meet on the count.',
+        ]
+      : [
+          `Searching verified startups · ${s.role}…`,
+          '3 matches found · narrowing by field…',
+          `Matched · they know the role — not you.`,
+        ]
     const t1 = setTimeout(() => setMmLog(logs[0]), 100)
     const t2 = setTimeout(() => setMmLog(logs[1]), 1400)
     const t3 = setTimeout(() => { setMmLog(logs[2]); setPhase('countdown') }, 2900)
@@ -174,6 +182,7 @@ export default function Session() {
     if (isLive && elapsed >= s.duration && !ended.current) {
       ended.current = true
       if (real) Match.sendEnd()
+      finishAppt()
       pushTranscript({ t: 'end', detail: 'time up' })
       track('session_ended', { decision: 'time', mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
       api.endSession({ decision: 'time' })
@@ -226,10 +235,15 @@ export default function Session() {
     if (!real && persp === 'candidate') toast('Scenario incoming — good luck', '🎯')
   }
 
+  const finishAppt = () => {
+    if (isAppt && s?.appointmentId) Appt.markDone(s.appointmentId).catch(() => {})
+  }
+
   const endNow = (fromRemote = false) => {
     if (ended.current) return
     ended.current = true
     if (real && !fromRemote) Match.sendEnd()
+    finishAppt()
     pushTranscript({ t: 'end', detail: 'ended' })
     track('session_ended', { decision: 'ended', mode: real ? 'real' : 'demo', role: s?.roleType, field: s?.field })
     api.endSession({ decision: 'ended' })
@@ -240,9 +254,9 @@ export default function Session() {
       {/* ————— Top bar ————— */}
       <div className="session-top">
         <span className="live-dot" />
-        <span className="mock-live">{isLive ? 'LIVE' : phase === 'countdown' ? 'MATCHED' : 'CONNECTING'}</span>
+        <span className="mock-live">{isLive ? 'LIVE' : phase === 'countdown' ? (isAppt ? 'BOOKED' : 'MATCHED') : (isAppt ? 'BOOKED CALL' : 'CONNECTING')}</span>
         <span className={`st-phase ${inIntro ? '' : 'unscripted'}`}>
-          {phase === 'connecting' ? 'matching' : phase === 'countdown' ? 'hold tight' : inIntro ? 'intro · employer sets the scene' : 'unscripted'}
+          {phase === 'connecting' ? (isAppt ? 'booked call · secure link' : 'matching') : phase === 'countdown' ? 'hold tight' : inIntro ? 'intro · employer sets the scene' : 'unscripted'}
         </span>
         {real
           ? <span className="st-phase" style={{ color: peerOnline ? 'var(--mint)' : 'var(--amber)', borderColor: peerOnline ? 'rgba(63,185,80,.4)' : 'rgba(210,153,34,.4)', background: peerOnline ? 'rgba(63,185,80,.08)' : 'rgba(210,153,34,.08)' }}>{peerOnline ? (call.status === 'connected' ? 'PEER LIVE · VIDEO' : call.status === 'failed' ? 'VIDEO UNAVAILABLE' : 'PEER LIVE') : 'PEER LEFT'}</span>
@@ -296,7 +310,7 @@ export default function Session() {
 
               <SelfTile stream={call.localStream} camOn={call.camOn} micOn={call.micOn} camFailed={call.camFailed} toggleCam={call.toggleCam} toggleMic={call.toggleMic} />
 
-              {phase === 'connecting' && <Matchmaking log={mmLog} field={s.role} real={real} />}
+              {phase === 'connecting' && <Matchmaking log={mmLog} field={s.role} real={real} appt={isAppt} candidate={isCandidate} />}
               {phase === 'countdown' && <Countdown />}
               {real && isLive && !peerOnline && !peerLeftDismissed && (
                 <PeerLeftOverlay onEnd={() => endNow()} onContinue={() => setPeerLeftDismissed(true)} />
@@ -435,7 +449,7 @@ export default function Session() {
 
 /* ————— Matchmaking ————— */
 
-function Matchmaking({ log, field, real }) {
+function Matchmaking({ log, field, real, appt = false, candidate = true }) {
   return (
     <div className="mm-overlay">
       <div className="mm-inner">
@@ -443,12 +457,22 @@ function Matchmaking({ log, field, real }) {
           <div className="rr" /><div className="rr" /><div className="rr" />
           <div className="rr-core" />
         </div>
-        <h3>{real ? 'Secure link established' : 'Finding your blind match'}</h3>
+        <h3>{appt ? (real ? 'Booked call · secure link established' : 'Opening your booked call…') : (real ? 'Secure link established' : 'Finding your blind match')}</h3>
         <p>
-          {real ? (
-            <>A verified peer is in the room — <strong style={{ color: 'var(--text)' }}>{field}</strong>. Names stay hidden until after the session.</>
+          {appt ? (
+            real ? (
+              candidate
+                ? <>A verified startup in <strong style={{ color: 'var(--text)' }}>{field}</strong> is here. Their name stays hidden until after the call.</>
+                : <>Your booked candidate is here for <strong style={{ color: 'var(--text)' }}>{field}</strong>. The call runs like any live session.</>
+            ) : (
+              <>You booked a call for <strong style={{ color: 'var(--text)' }}>{field}</strong> — the other side's identity stays hidden.</>
+            )
           ) : (
-            <>They see the role: <strong style={{ color: 'var(--text)' }}>{field}</strong>. Nothing else about you.</>
+            real ? (
+              <>A verified peer is in the room — <strong style={{ color: 'var(--text)' }}>{field}</strong>. Names stay hidden until after the session.</>
+            ) : (
+              <>They see the role: <strong style={{ color: 'var(--text)' }}>{field}</strong>. Nothing else about you.</>
+            )
           )}
         </p>
         <div className="mm-log">{log}</div>

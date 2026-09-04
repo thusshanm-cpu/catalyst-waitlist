@@ -6,6 +6,7 @@ import { track } from '../analytics.js'
 import { signOutUser } from '../auth.js'
 import { CANDIDATE_QUEUE, CANDIDATES, EMPLOYER_QUEUE, STARTUPS, fieldLabel, SIMULATIONS } from '../data.js'
 import { FIELD_ICONS, SIM_ICONS, Calendar, Compass, Spark } from '../components/icons.jsx'
+import Appointments from './Appointments.jsx'
 
 /* the candidate's verified profile as a shareable resume snapshot */
 const resumeOf = (u) => ({
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const [mode, setMode] = useState('demo') // 'demo' | 'real'
   const [searching, setSearching] = useState(null) // field being searched for a live peer
   const [pending, setPending] = useState(null) // async match held until the peer is online
+  const [tab, setTab] = useState('match') // 'match' | 'appt'
   const [presence, setPresence] = useState([])
   const [channelLabel, setChannelLabel] = useState(null)
 
@@ -173,6 +175,13 @@ export default function Dashboard() {
           )}
         </div>
 
+        <div className="dash-tabs">
+          <button className={tab === 'match' ? 'on' : ''} onClick={() => setTab('match')}>Blind matches</button>
+          <button className={tab === 'appt' ? 'on' : ''} onClick={() => setTab('appt')}>Booked calls</button>
+        </div>
+
+        {tab === 'match' ? (
+          <>
         <div className="dash-head" style={{ marginTop: 34 }}>
           <div>
             <h1>{isCandidate ? `Ready when you are, ${user?.name?.split(' ')[0] || 'there'}.` : `${user?.company || 'Your startup'} — live hiring.`}</h1>
@@ -349,6 +358,10 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+          </>
+        ) : (
+          <Appointments />
+        )}
       </div>
     </div>
   )

@@ -8,6 +8,8 @@
 --   matches       — a made match, picked up by both sides when online
 --   match_events  — funnel analytics (match → call → decision)
 --   function_usage — rate-limit counter for the session-summary edge fn
+--   appointment_slots — startups publish open call slots by industry (no company info)
+--   appointments      — booked calls; startup sees the candidate's name
 -- ————————————————————————————————————————————————————————————
 
 -- ————— Profiles (real accounts) —————
@@ -161,7 +163,7 @@ create policy "authenticated can insert match events"
 -- Hygiene: only known event names, and nothing oversized.
 alter table public.match_events drop constraint if exists match_events_event_whitelist;
 alter table public.match_events add constraint match_events_event_whitelist
-  check (event in ('match_started','call_connected','call_failed','peer_left','session_ended','decision'));
+  check (event in ('match_started','call_connected','call_failed','peer_left','session_ended','decision','appointment_created','appointment_booked','appointment_joined'));
 alter table public.match_events drop constraint if exists match_events_len;
 alter table public.match_events add constraint match_events_len
   check (length(event) <= 48
@@ -187,6 +189,178 @@ alter table public.function_usage enable row level security;
 create index if not exists function_usage_ip_idx on public.function_usage (ip, called_at);
 create index if not exists function_usage_at_idx on public.function_usage (called_at);
 
+-- ————— Booked calls (appointments) —————
+-- Startups publish open call slots by industry; candidates book them and
+-- the call runs on the live-session interface. Privacy by construction:
+--   · a slot row carries NO company identity — only the industry (field),
+--     day/time and duration. Candidates can never read the startup's
+--     identity, even through the API.
+--   · the booking snapshots the candidate's name/school/program, which is
+--     all the startup sees before the call.
+create table if not exists public.appointment_slots (
+  id           uuid primary key default gen_random_uuid(),
+  owner_id     text not null,               -- startup's auth uid (or device id)
+  field        text not null,               -- industry id — the only identity candidates see
+  day          date not null,
+  time         text not null,               -- e.g. '2:00 PM'
+  duration_min int not null default 30 check (duration_min between 5 and 120),
+  status       text not null default 'open', -- open | booked
+  created_at   timestamptz not null default now()
+);
+
+alter table public.appointment_slots enable row level security;
+
+-- anyone (anon + signed-in) can read OPEN slots — they contain no company info
+drop policy if exists "read open slots" on public.appointment_slots;
+create policy "read open slots"
+  on public.appointment_slots
+  for select
+  to public
+  using (status = 'open');
+
+-- owners can always see their own slots (booked ones included)
+drop policy if exists "owners read own slots" on public.appointment_slots;
+create policy "owners read own slots"
+  on public.appointment_slots
+  for select
+  to authenticated
+  using (owner_id = auth.uid()::text);
+
+-- only the owner can publish a slot
+drop policy if exists "publish own slot" on public.appointment_slots;
+create policy "publish own slot"
+  on public.appointment_slots
+  for insert
+  to authenticated
+  with check (owner_id = auth.uid()::text and status = 'open');
+
+-- only the owner can update or delete their own slot
+drop policy if exists "manage own slot" on public.appointment_slots;
+create policy "manage own slot"
+  on public.appointment_slots
+  for update
+  to authenticated
+  using (owner_id = auth.uid()::text)
+  with check (owner_id = auth.uid()::text);
+
+drop policy if exists "delete own slot" on public.appointment_slots;
+create policy "delete own slot"
+  on public.appointment_slots
+  for delete
+  to authenticated
+  using (owner_id = auth.uid()::text);
+
+create index if not exists appointment_slots_open_idx
+  on public.appointment_slots (field, status, day);
+
+-- ————— Bookings —————
+-- One row per booked call. owner_id is snapshotted at booking so the
+-- candidate's view of their own row can carry the (opaque) peer uid for
+-- the live-call relay — same uid exposure the `matches` table already has.
+create table if not exists public.appointments (
+  id                uuid primary key default gen_random_uuid(),
+  slot_id           uuid not null references public.appointment_slots(id) on delete cascade,
+  owner_id          text not null,          -- the startup's auth uid (opaque peer id for the candidate)
+  candidate_id      text not null,          -- the candidate's auth uid
+  candidate_name    text not null,
+  candidate_school  text,
+  candidate_program text,
+  field             text not null,          -- industry snapshot — candidates see only this
+  day               date not null,
+  time              text not null,
+  duration_min      int not null default 30,
+  status            text not null default 'upcoming', -- upcoming | done
+  created_at        timestamptz not null default now()
+);
+
+alter table public.appointments enable row level security;
+
+-- a booking is visible only to its candidate and the slot's owner
+drop policy if exists "read own bookings" on public.appointments;
+create policy "read own bookings"
+  on public.appointments
+  for select
+  to authenticated
+  using (
+    candidate_id = auth.uid()::text
+    or slot_id in (select id from public.appointment_slots where owner_id = auth.uid()::text)
+  );
+
+-- participants can flip status (upcoming → done) after the call
+drop policy if exists "update own booking" on public.appointments;
+create policy "update own booking"
+  on public.appointments
+  for update
+  to authenticated
+  using (
+    candidate_id = auth.uid()::text
+    or slot_id in (select id from public.appointment_slots where owner_id = auth.uid()::text)
+  )
+  with check (
+    candidate_id = auth.uid()::text
+    or slot_id in (select id from public.appointment_slots where owner_id = auth.uid()::text)
+  );
+
+create index if not exists appointments_participant_idx
+  on public.appointments (candidate_id, status);
+create index if not exists appointments_slot_idx
+  on public.appointments (slot_id);
+
+-- ————— Book a slot (atomic, race-safe) —————
+-- One RPC flips the slot to booked and creates the booking in a single
+-- transaction — two candidates can't grab the same slot. Security definer
+-- bypasses RLS deliberately; the function itself enforces "signed-in
+-- caller" and "slot was still open". This is the only way a booking row
+-- can be created.
+create or replace function public.book_appointment_slot(
+  p_slot_id uuid,
+  p_name text,
+  p_school text,
+  p_program text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_slot public.appointment_slots%rowtype;
+  v_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'sign in required';
+  end if;
+
+  -- optimistic lock: only an open slot can be claimed; concurrent
+  -- bookings serialize on the row lock and the second one sees 'booked'
+  select * into v_slot
+    from public.appointment_slots
+   where id = p_slot_id
+     and status = 'open'
+   for update;
+  if v_slot.id is null then
+    raise exception 'slot no longer open';
+  end if;
+
+  update public.appointment_slots
+     set status = 'booked'
+   where id = p_slot_id;
+
+  insert into public.appointments (
+    slot_id, owner_id, candidate_id, candidate_name, candidate_school,
+    candidate_program, field, day, time, duration_min, status
+  ) values (
+    p_slot_id, v_slot.owner_id, auth.uid()::text, p_name, p_school, p_program,
+    v_slot.field, v_slot.day, v_slot.time, v_slot.duration_min, 'upcoming'
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+grant execute on function public.book_appointment_slot(uuid, text, text, text) to authenticated;
+
 -- ————— Convergence guard —————
 -- Re-affirm the intended state so a re-run always converges, no matter
 -- what ran before (all policies above are drop-first, so they re-create
@@ -201,10 +375,12 @@ begin
     select 1 from pg_publication_tables
     where pubname = 'supabase_realtime'
       and schemaname = 'public'
-      and tablename in ('search_offers', 'matches')
+      and tablename in ('search_offers', 'matches', 'appointment_slots', 'appointments')
   ) then
     alter publication supabase_realtime add table public.search_offers;
     alter publication supabase_realtime add table public.matches;
+    alter publication supabase_realtime add table public.appointment_slots;
+    alter publication supabase_realtime add table public.appointments;
   end if;
 end
 $$;

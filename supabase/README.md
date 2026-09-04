@@ -20,6 +20,8 @@ It creates (idempotently):
 | `matches` | a made match, picked up by both sides when online |
 | `match_events` | funnel analytics (match → call → decision) |
 | `function_usage` | rate-limit counter for the `session-summary` edge fn |
+| `appointment_slots` | booked calls — startups publish open slots by industry (no company info on the row) |
+| `appointments` | a booked call — startup sees the candidate's name; booking goes through the atomic `book_appointment_slot` RPC |
 
 Safe to re-run: every statement is idempotent (drop-first where it
 matters), so pulling the latest `schema.sql` after this hardening change
@@ -64,6 +66,12 @@ email once). Profiles are written to `profiles` when onboarding completes.
   inserts are restricted to **authenticated** users — anonymous visitors
   can't spam junk rows into the funnel. Verification is still manual
   (you flip `profiles.verification_status` to `approved`).
+- **Booked calls** are auth-gated like the matching room: only signed-in
+  users can publish slots or book them (the `book_appointment_slot` RPC
+  enforces this server-side and makes double-booking impossible). Slots
+  deliberately carry no company identity, so a candidate can never read
+  the startup's name — even via the API. The startup sees the candidate's
+  name/school/program from the booking.
 - `session-summary` is deliberately open to the joined demo (no JWT), so
   it rate-limits itself: per-IP window (20 req / 10 min) plus a global
   daily cap (`LLM_DAILY_CAP`, default 5,000), tracked in `function_usage`
